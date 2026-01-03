@@ -1,23 +1,22 @@
 #ifndef GAME_H
 #define GAME_H
 
-#include "stdbool.h"
-#include "server.h"
+#include <stdbool.h>
 
-typedef enum {
+typedef enum GameState {
   GAME_WAITING,
   GAME_IN_PROGRESS,
   GAME_FINISHED
 } GameState;
 
-typedef enum {
+typedef enum GameResult {
   RESULT_WIN,
   RESULT_LOSS,
   RESULT_DRAW,
   RESULT_NONE
 } GameResult;
 
-typedef enum {
+typedef enum Player {
   PLAYER_X = 0,
   PLAYER_O = 1
 } Player;
@@ -31,6 +30,7 @@ typedef struct Game {
   Player current_turn;
   GameResult result_player_x;
   GameResult result_player_o;
+  struct Game* next;
 } Game;
 
 
@@ -47,7 +47,7 @@ void init_game(Game* game, int game_id, int player_x_socket);
 /**
  * Validate a move
  */
-bool is_valid_move(Game* game, int row, int col, Player player);
+bool is_valid_move(Game* game, int row, int col);
 
 
 #endif

@@ -36,6 +36,7 @@
 *.x86_64
 *.hex
 tris_server
+tris_client
 
 # Debug files
 *.dSYM/
@@ -54,3 +55,8 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# LSP helper
+compile_commands.json
+.cache/
+

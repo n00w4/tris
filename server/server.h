@@ -1,6 +1,8 @@
 #ifndef SERVER_H
 #define SERVER_H
 
+#include "game.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -15,25 +17,37 @@
 #define MAX_GAMES 50
 #define BUFFER_SIZE 1024
 #define SERVER_PORT 8080
+#define BACKLOG 10
+#define MAX_CONN_MSG "Full server. Try again later.\n"
+
+typedef struct Game Game;
 
 typedef struct Client {
   int socket;
   char username[50];
   int current_game_id;
   bool is_playing;
-  struct Client* next;
+  bool is_active;
 } Client;
 
-typedef struct Game Game;
-
-extern Client* clients;
+extern Client clients[MAX_CLIENTS];
 extern Game* games;
-extern int client_count;
+extern int active_clients_count;
 extern int game_count;
 
 extern pthread_mutex_t clients_mutex;
 extern pthread_mutex_t games_mutex;
 
+
+/**
+ * Add client to the array
+ */
+Client* add_client(int client_socket);
+
+/**
+ * Remove a client from the array
+ */
+void remove_client(int client_socket);
 
 /**
  * Initialize the global state of the server
