@@ -1,5 +1,11 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
 #include "server.h"
 #include "game.h"
+#include "protocol.h"
+#include "client_handler.h"
 
 Client clients[MAX_CLIENTS];
 Game* games = NULL;
@@ -115,42 +121,29 @@ void* handle_client(void* arg) {
   int client_socket = *(int*)arg;
   free(arg);
 
-  char buffer[BUFFER_SIZE];
-  ssize_t bytes_read;
-
-  printf("[server] New client thread started (socket %d)\n", client_socket);
-
+  Message msg;
+  
   pthread_mutex_lock(&clients_mutex);
   Client* client = add_client(client_socket);
   pthread_mutex_unlock(&clients_mutex);
 
   if (client == NULL) {
+    Message error_msg;
+    error_msg.type = MSG_ERROR;
+    strcpy(error_msg.payload.error.error_message, MAX_CONN_MSG);
+    send_message(client_socket, &error_msg);
     close(client_socket);
     return NULL;
-    // TODO: send a message to a client who can't connect
   }
 
   while (1) {
-    memset(buffer, 0, BUFFER_SIZE);
-    bytes_read = recv(client_socket, buffer, BUFFER_SIZE - 1, 0);
-
-    if (bytes_read <= 0) {
-      if (bytes_read == 0) {
-        printf("Client disconnected (socket %d)\n", client_socket);
-      } else {
-        perror("recv error");
-      }
+    memset(&msg, 0, sizeof(Message));
+    
+    if (receive_message(client_socket, &msg) < 0) {
       break;
     }
 
-    buffer[strcspn(buffer, "\n\r")] = 0;
-    printf("Received from socket %d: %s\n", client_socket, buffer);
-
-    ssize_t bytes_sent = send(client_socket, buffer, bytes_read, 0);
-    if (bytes_sent < 0) {
-      perror("send error");
-      break;
-    }
+    handle_message(client_socket, &msg);
   }
 
   pthread_mutex_lock(&clients_mutex);

@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -pedantic -std=c11 
+CFLAGS = -Wall -Wextra -pedantic -std=c11 -D_POSIX_C_SOURCE=200809L 
 LIBS = -lncurses
 SOURCES = client.c ui.c
 OBJECTS = $(SOURCES:.c=.o)

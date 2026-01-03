@@ -3,10 +3,7 @@
 
 #include "game.h"
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <stdbool.h>
-#include <string.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/socket.h>
@@ -52,12 +49,12 @@ void remove_client(int client_socket);
 /**
  * Initialize the global state of the server
  */
-void initialize_server();
+void initialize_server(void);
 
 /**
  * Cleanup server resources
  */
-void cleanup_server();
+void cleanup_server(void);
 
 /**
  * Create and configure server's socket

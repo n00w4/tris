@@ -6,6 +6,27 @@
 #include <stdio.h>
 #include <string.h>
 
+void handle_message(int client_socket, Message* msg) {
+  switch (msg->type) {
+    case MSG_CREATE_GAME:
+      // TODO: Implement game creation
+      break;
+    case MSG_JOIN_GAME:
+      // TODO: Implement join
+      break;
+    case MSG_LIST_GAMES:
+      handle_list_games(client_socket);
+      break;
+    default: {
+      Message error_msg;
+      error_msg.type = MSG_ERROR;
+      strcpy(error_msg.payload.error.error_message, "Unsupported message type");
+      send_message(client_socket, &error_msg);
+      break;
+    }
+  }
+}
+
 void handle_list_games(int client_socket) {
   Message response;
   memset(&response, 0, sizeof(Message));

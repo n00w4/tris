@@ -3,7 +3,6 @@
 #include <sys/socket.h>
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
 
 int send_message(int socket, const Message* msg) {
   if (msg == NULL) {

@@ -3,15 +3,10 @@
 
 #include "ui.h"
 
-void init_ncurses() {
-  draw_board();
-
+int main(void) {
+  init_ui();
+  show_main_menu();
   getch();
-
-  endwin();
-}
-
-int main() {
-  init_ncurses();
+  cleanup_ui();
   return 0;
 }
