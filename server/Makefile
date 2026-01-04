@@ -1,34 +1,38 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -pedantic -std=c11 -g
+CFLAGS = -Wall -Wextra -pedantic -std=c11
 LIBS = -pthread
-SOURCES = server.c game.c protocol.c client_handler.c
-OBJECTS = $(SOURCES:.c=.o)
-TARGET = tris_server
+
+SRCDIR = src
+BUILDDIR = build
+
+SOURCES = $(SRCDIR)/main.c \
+          $(SRCDIR)/server.c \
+          $(SRCDIR)/game.c \
+          $(SRCDIR)/protocol.c \
+          $(SRCDIR)/client_handler.c
+
+OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(BUILDDIR)/%.o)
+
+TARGET = $(BUILDDIR)/tris_server
 
 .PHONY: all clean run debug
 
 all: $(TARGET)
 
-$(TARGET): $(OBJECTS)
+$(TARGET): $(OBJECTS) | $(BUILDDIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
-server.o: server.c server.h protocol.h client_handler.h game.h
+$(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-game.o: game.c game.h
-	$(CC) $(CFLAGS) -c $< -o $@
-
-protocol.o: protocol.c protocol.h
-	$(CC) $(CFLAGS) -c $< -o $@
-
-client_handler.o: client_handler.c client_handler.h server.h protocol.h
-	$(CC) $(CFLAGS) -c $< -o $@
+$(BUILDDIR):
+	mkdir -p $(BUILDDIR)
 
 clean:
-	rm -f $(OBJECTS) $(TARGET)
+	rm -rf $(BUILDDIR)
 
 run: $(TARGET)
 	./$(TARGET)
 
 debug: CFLAGS += -DDEBUG -O0
-debug: clean $(TARGET)
+debug: all
