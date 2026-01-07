@@ -6,11 +6,15 @@ SRCDIR = src
 BUILDDIR = build
 
 SOURCES = $(SRCDIR)/main.c \
-          $(SRCDIR)/ui/ui.c
+          $(SRCDIR)/ui/ui.c \
+					$(SRCDIR)/ui/menu.c \
+					$(SRCDIR)/utils/utils.c
 
 OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(BUILDDIR)/%.o)
 DEPS = $(OBJECTS:.o=.d)
 TARGET = tris_client
+
+all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
@@ -28,9 +32,9 @@ clean:
 run: $(TARGET)
 	./$(TARGET)
 
-debug: CFLAGS += -ggdb
-debug: $(TARGET)
+debug: CFLAGS += -ggdb -O0
+debug: clean $(TARGET)
 
-.PHONY: clean run debug
+.PHONY: all clean run debug
 
 -include $(DEPS)

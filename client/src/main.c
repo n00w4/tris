@@ -2,6 +2,7 @@
 #include <stdbool.h>
 
 #include "ui/ui.h"
+#include "ui/menu.h"
 
 int main(void) {
   init_ui();
