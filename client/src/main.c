@@ -7,7 +7,6 @@
 int main(void) {
   init_ui();
   show_main_menu();
-  getch();
   cleanup_ui();
   return 0;
 }

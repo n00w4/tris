@@ -29,15 +29,18 @@ void show_main_menu(void) {
   switch (choice) {
     case 0: // Create new game
       mvprintw(LINES/2, COLS/2 - 10, "Creating new game...");
+      getch();
       break;
     case 1: // Join a game
       mvprintw(LINES/2, COLS/2 - 8, "Joining game...");
+      getch();
       break;
     case 2: // Settings
       show_settings_menu();
       break;
     case 3: // Help
       mvprintw(LINES/2, COLS/2 - 5, "Help screen...");
+      getch();
       break;
     case 4: // Exit
     case -1:
@@ -46,7 +49,6 @@ void show_main_menu(void) {
   }
 
   refresh();
-  getch();
 }
 
 static void clear_field_area(int y, int x, int width) {
