@@ -1,9 +1,9 @@
-#include <ncurses.h>
-#include <string.h>
-
 #include "ui.h"
 #include "../utils/utils.h"
 #include "menu.h"
+
+#include <ncurses.h>
+#include <string.h>
 
 void show_main_menu(void) {
   clear();

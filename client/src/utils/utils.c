@@ -1,8 +1,8 @@
+#include "utils.h"
+
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
-
-#include "utils.h"
 
 bool read_config(Config* config) {
   if (config == NULL) { return false; }

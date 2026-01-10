@@ -8,7 +8,9 @@ BUILDDIR = build
 SOURCES = $(SRCDIR)/main.c \
           $(SRCDIR)/ui/ui.c \
 					$(SRCDIR)/ui/menu.c \
-					$(SRCDIR)/utils/utils.c
+					$(SRCDIR)/utils/utils.c \
+					$(SRCDIR)/network/protocol.c \
+					$(SRCDIR)/network/network.c
 
 OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(BUILDDIR)/%.o)
 DEPS = $(OBJECTS:.o=.d)
