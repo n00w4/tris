@@ -8,9 +8,10 @@ BUILDDIR = build
 SOURCES = $(SRCDIR)/main.c \
           $(SRCDIR)/ui/ui.c \
 					$(SRCDIR)/ui/menu.c \
+					$(SRCDIR)/ui/screens.c \
 					$(SRCDIR)/utils/utils.c \
 					$(SRCDIR)/network/protocol.c \
-					$(SRCDIR)/network/network.c
+					$(SRCDIR)/network/network.c 
 
 OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(BUILDDIR)/%.o)
 DEPS = $(OBJECTS:.o=.d)
@@ -34,8 +35,8 @@ clean:
 run: $(TARGET)
 	./$(TARGET)
 
-debug: CFLAGS += -ggdb -O0
 debug: clean $(TARGET)
+debug: CFLAGS += -ggdb -O0
 
 .PHONY: all clean run debug
 

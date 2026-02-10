@@ -10,6 +10,9 @@
 #define START_Y 5
 #define MAX_MENU_ITEMS 10
 
+#define MENU_BACK -2
+#define MENU_QUIT -1
+
 typedef struct {
   char* title;
   char* items[MAX_MENU_ITEMS];
@@ -32,7 +35,7 @@ void init_generic_menu(Menu* menu, const char* title, int start_y, int start_x, 
 void draw_generic_menu(Menu* menu);
 void add_menu_item(Menu* menu, const char* item);
 void cleanup_generic_menu(Menu* menu);
-int handle_generic_menu_input(Menu* menu);
+int handle_generic_menu_input(Menu* menu, bool is_main_menu);
 
 #endif
 

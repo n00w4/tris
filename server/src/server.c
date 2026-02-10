@@ -53,7 +53,7 @@ void remove_client(int client_socket) {
   }
 }
 
-void initialize_server() {
+void initialize_server(void) {
   printf("Server initialized\n");
   for (int i = 0; i < MAX_CLIENTS; i++) {
     clients[i].is_active = false;
@@ -63,7 +63,7 @@ void initialize_server() {
   game_count = 0;
 }
 
-void cleanup_server() {
+void cleanup_server(void) {
   pthread_mutex_lock(&games_mutex);
   Game* current = games;
   while (current != NULL) {
@@ -151,5 +151,15 @@ void* handle_client(void* arg) {
   pthread_mutex_unlock(&clients_mutex);
 
   return NULL;
+}
+
+void add_game_to_list(Game* new_game) {
+  pthread_mutex_lock(&games_mutex);
+
+  new_game->next = games;
+  games = new_game;
+  game_count++;
+
+  pthread_mutex_unlock(&games_mutex);
 }
 

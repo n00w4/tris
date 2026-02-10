@@ -1,6 +1,7 @@
 #include "ui.h"
 #include "../utils/utils.h"
 #include "menu.h"
+#include "screens.h"
 
 #include <ncurses.h>
 #include <string.h>
@@ -22,7 +23,7 @@ void show_main_menu(void) {
   add_menu_item(&main_menu, "Help");
   add_menu_item(&main_menu, "Exit");
 
-  int choice = handle_generic_menu_input(&main_menu);
+  int choice = handle_generic_menu_input(&main_menu, true);
   cleanup_generic_menu(&main_menu);
   clear();
 
@@ -32,8 +33,7 @@ void show_main_menu(void) {
       getch();
       break;
     case 1: // Join a game
-      mvprintw(LINES/2, COLS/2 - 8, "Joining game...");
-      getch();
+      show_join_game_screen();
       break;
     case 2: // Settings
       show_settings_menu();

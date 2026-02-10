@@ -1,5 +1,4 @@
 #include "ui.h"
-#include "menu.h"
 
 #include <stdlib.h>
 #include <stdbool.h>
@@ -8,10 +7,6 @@
 static WINDOW* main_win = NULL;
 static WINDOW* status_win = NULL;
 static WINDOW* menu_win = NULL;
-
-void start_ui(void) {
- show_main_menu(); 
-}
 
 void init_ui(void) {
   initscr();
@@ -175,7 +170,7 @@ void cleanup_generic_menu(Menu* menu) {
   }
 }
 
-int handle_generic_menu_input(Menu* menu) {
+int handle_generic_menu_input(Menu* menu, bool is_main_menu) {
   int ch;
   
   while (1) {
@@ -192,7 +187,7 @@ int handle_generic_menu_input(Menu* menu) {
       case '\n':
         return menu->selected_index;
       case 27:
-        return -1;
+        return is_main_menu ? MENU_QUIT : MENU_BACK;
       case KEY_RESIZE:
         clear();
         refresh();

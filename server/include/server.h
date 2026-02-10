@@ -66,4 +66,9 @@ int create_server_socket(int port);
  */
 void* handle_client(void* arg);
 
+/**
+ * Add a game to the list
+ */
+void add_game_to_list(Game* new_game);
+
 #endif

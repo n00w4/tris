@@ -12,6 +12,7 @@ typedef enum MessageType {
   MSG_LIST_GAMES,
   MSG_GAME_STATE,
   MSG_GAME_LIST,
+  MSG_GAME_START,
   MSG_ERROR
 } MessageType;
 
@@ -49,6 +50,12 @@ typedef struct GameListPayload {
   uint8_t game_states[10];
 } GameListPayload;
 
+typedef struct GameStartPayload {
+  uint32_t game_id;
+  uint8_t player_role;  // 0 = X, 1 = O
+  uint8_t first_player; // 0 = X, 1 = O
+} GameStartPayload;
+
 typedef struct Message {
   uint8_t type;
   uint32_t game_id;
@@ -58,6 +65,7 @@ typedef struct Message {
     GameStatePayload game_state;
     ErrorPayload error;
     GameListPayload game_list;
+    GameStartPayload game_start;
   } payload;
 } Message;
 

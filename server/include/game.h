@@ -2,6 +2,7 @@
 #define GAME_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef enum GameState {
   GAME_WAITING,
@@ -22,7 +23,7 @@ typedef enum Player {
 } Player;
 
 typedef struct Game {
-  int id;
+  uint32_t id;
   int player_x_socket;
   int player_o_socket;
   char board[3][3];
@@ -45,10 +46,14 @@ typedef struct Game {
 void init_game(Game* game, int game_id, int player_x_socket);
 
 /**
+ * Create a game
+*/
+Game* create_game(int player_x_socket); 
+
+/**
  * Validate a move
  */
 bool is_valid_move(Game* game, int row, int col);
-
 
 #endif
 

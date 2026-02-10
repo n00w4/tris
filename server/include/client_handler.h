@@ -16,4 +16,14 @@ void handle_message(int client_socket, Message* msg);
 */
 void handle_list_games(int client_socket);
 
+/**
+ * Handle join game requests
+*/
+void handle_join_games(int client_socket, uint32_t game_id);
+
+/**
+ * Handle the game request creation
+ */
+void handle_create_games(int client_socket);
+
 #endif
