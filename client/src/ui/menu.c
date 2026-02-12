@@ -6,7 +6,7 @@
 #include <ncurses.h>
 #include <string.h>
 
-void show_main_menu(void) {
+int show_main_menu(void) {
   clear();
 
   int menu_height = 16;
@@ -21,34 +21,30 @@ void show_main_menu(void) {
   add_menu_item(&main_menu, "Join a game");
   add_menu_item(&main_menu, "Settings");
   add_menu_item(&main_menu, "Help");
-  add_menu_item(&main_menu, "Exit");
+  add_menu_item(&main_menu, "Exit"); 
+
+  menu_action_t actions[] = {
+    show_create_game_screen,
+    show_join_game_screen,
+    show_settings_menu,
+    show_help_screen
+  };
 
   int choice = handle_generic_menu_input(&main_menu, true);
   cleanup_generic_menu(&main_menu);
   clear();
 
-  switch (choice) {
-    case 0: // Create new game
-      mvprintw(LINES/2, COLS/2 - 10, "Creating new game...");
-      getch();
-      break;
-    case 1: // Join a game
-      show_join_game_screen();
-      break;
-    case 2: // Settings
-      show_settings_menu();
-      break;
-    case 3: // Help
-      mvprintw(LINES/2, COLS/2 - 5, "Help screen...");
-      getch();
-      break;
-    case 4: // Exit
-    case -1:
-      mvprintw(LINES/2, COLS/2 - 5, "Exiting...");
-      break;
+  if (choice == 4 || choice == -1) {
+    return -1; 
   }
 
+  if (choice >= 0 && choice < 4) {
+    actions[choice](); 
+  }
+
+  clear();
   refresh();
+  return 0;
 }
 
 static void clear_field_area(int y, int x, int width) {
@@ -104,12 +100,21 @@ void show_settings_menu(void) {
   read_config(&config);
 
   int active_field = 0;
-  int ch;
   bool exit_menu = false;
+
+  // Where data and fields are located
+  struct {
+    int offset_y;
+    char* buffer;
+    int size;
+  } fields[] = {
+    {2, config.username, sizeof(config.username) - 1},
+    {4, config.ip,       sizeof(config.ip) - 1},
+    {6, config.port,     sizeof(config.port) - 1}
+  };
 
   while (!exit_menu) {
     clear();
-
     attron(A_BOLD);
     mvprintw(menu_y, menu_x + (menu_width - 16) / 2, "=== SETTINGS ===");
     attroff(A_BOLD);
@@ -117,43 +122,29 @@ void show_settings_menu(void) {
     draw_settings_fields(menu_y, menu_x, &config, active_field);
     refresh();
 
-    ch = getch();
+    int ch = getch();
     switch (ch) {
-      case KEY_UP:
-        active_field = (active_field + 3) % 4;
-        break;
+      case KEY_UP:    active_field = (active_field + 3) % 4; break;
       case KEY_DOWN:
-      case '\t':
-        active_field = (active_field + 1) % 4;
-        break;
-      case 10: // Enter
-        if (active_field == 0) {
-          clear_field_area(menu_y + 2, menu_x + 14, 18);
-          get_styled_input(menu_y + 2, menu_x + 14, config.username, sizeof(config.username) - 1);
-        } else if (active_field == 1) {
-          clear_field_area(menu_y + 4, menu_x + 14, 15);
-          get_styled_input(menu_y + 4, menu_x + 14, config.ip, sizeof(config.ip) - 1);
-        } else if (active_field == 2) {
-          clear_field_area(menu_y + 6, menu_x + 14, 5);
-          get_styled_input(menu_y + 6, menu_x + 14, config.port, sizeof(config.port) - 1);
-        } else if (active_field == 3) {
+      case '\t':      active_field = (active_field + 1) % 4; break;
+
+      case 10: // ENTER
+        if (active_field < 3) {
+          clear_field_area(menu_y + fields[active_field].offset_y, menu_x + 14, 18);
+          get_styled_input(menu_y + fields[active_field].offset_y, menu_x + 14, 
+              fields[active_field].buffer, fields[active_field].size);
+        } else {
           save_config(&config);
-          mvprintw(menu_y + 14, menu_x + 5, "Settings saved successfully!");
-          refresh();
-          napms(1000);
-          exit_menu = true;
+           mvprintw(menu_y + 10, menu_x + 5, "Settings saved!");
+           refresh();
+           napms(1000);
+           exit_menu = true;
         }
         break;
       case 27: // ESC
-        exit_menu = true;
-        break;
+      exit_menu = true;
+      break;
     }
-  }
-
-  if (exit_menu) { 
-    clear();
-    refresh();
-    show_main_menu();
   }
 }
 

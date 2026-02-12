@@ -6,7 +6,12 @@
 
 int main(void) {
   init_ui();
-  show_main_menu();
+  
+  int status;
+  do {
+    status = show_main_menu();
+  } while (status != -1);
+  
   cleanup_ui();
   return 0;
 }

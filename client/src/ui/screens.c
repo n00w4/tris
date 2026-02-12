@@ -5,6 +5,12 @@
 #include <ncurses.h>
 #include <stdio.h>
 
+void show_create_game_screen(void) {
+  // TODO: Implement create game screen
+  mvprintw(LINES/2, COLS/2 - 10, "Creating new game...");
+  getch(); 
+}
+
 void show_join_game_screen(void) {
   Message req;
   req.type = MSG_LIST_GAMES;
@@ -45,7 +51,7 @@ void show_join_game_screen(void) {
   for (int i = 0; i < payload->game_count; i++) {
     char item[64];
     snprintf(item, sizeof(item), "Game ID: %u | State: %s", payload->game_ids[i],
-             payload->game_states[i] == 0 ? "New" : payload->game_states[i] == 1 ? "Waiting" : "In Progress");
+        payload->game_states[i] == 0 ? "New" : payload->game_states[i] == 1 ? "Waiting" : "In Progress");
     add_menu_item(&join_menu, item);
   }
 
@@ -85,3 +91,33 @@ void show_join_game_screen(void) {
     getch();
   }
 }
+
+void show_help_screen(void) {
+  clear();
+
+  attron(A_BOLD);
+  mvprintw(1, COLS / 2 - 10, "=== TRIS HELP ===");
+  attroff(A_BOLD);
+
+  int y = 4;
+  mvprintw(y++, 2, "Goal of the game:");
+  mvprintw(y++, 4, "- Align three identical symbols in a row (horizontal, vertical, or diagonal).");
+  y++;
+
+  mvprintw(y++, 2, "How to play:");
+  mvprintw(y++, 4, "- Use the ARROW KEYS to navigate through the menus.");
+  mvprintw(y++, 4, "- Press ENTER to select an option.");
+  mvprintw(y++, 4, "- Press ESC to go back (except in the main menu, where ESC exits the app).");
+  mvprintw(y++, 4, "- During the game, you can also use LEFT CLICK to select a cell.");
+  y++;
+
+  mvprintw(y++, 2, "Navigation:");
+  mvprintw(y++, 4, "- All menus follow the same pattern: arrows to move, enter to confirm.");
+  y++;
+
+  mvprintw(y++, 2, "Press any key to return to the main menu...");
+
+  refresh();
+  getch();
+}
+
