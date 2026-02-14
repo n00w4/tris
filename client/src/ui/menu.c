@@ -1,7 +1,7 @@
-#include "ui.h"
-#include "../utils/utils.h"
-#include "menu.h"
-#include "screens.h"
+#include "ui/ui.h"
+#include "utils/utils.h"
+#include "ui/menu.h"
+#include "ui/screens.h"
 
 #include <ncurses.h>
 #include <string.h>

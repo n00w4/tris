@@ -4,7 +4,7 @@
 
 #include "server.h"
 #include "game.h"
-#include "../../common/include/protocol.h"
+#include "common/include/protocol.h"
 #include "client_handler.h"
 
 Client clients[MAX_CLIENTS];

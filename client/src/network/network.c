@@ -1,5 +1,5 @@
-#include "network.h"
-#include "../utils/utils.h"
+#include "network/network.h"
+#include "utils/utils.h"
 
 #include <stdlib.h>
 #include <arpa/inet.h>

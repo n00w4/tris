@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -pedantic -std=c11 -Iinclude -I../common/include
+CFLAGS = -Wall -Wextra -pedantic -std=c11 -Iinclude -I../common/include -I../
 LIBS = -pthread
 
 SRCDIR = src

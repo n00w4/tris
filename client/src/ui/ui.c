@@ -1,4 +1,4 @@
-#include "ui.h"
+#include "ui/ui.h"
 
 #include <stdlib.h>
 #include <stdbool.h>

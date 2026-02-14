@@ -1,6 +1,6 @@
-#include "screens.h"
-#include "../network/network.h"
-#include "ui.h"
+#include "ui/screens.h"
+#include "network/network.h"
+#include "ui/ui.h"
 
 #include <ncurses.h>
 #include <stdio.h>
@@ -32,20 +32,15 @@ void show_create_game_screen(void) {
 
   clear();
 
-  // Chiedi all'utente un nome per la partita (opzionale)
-  char game_name[64] = {0}; // Buffer per il nome della partita
+  char game_name[64] = {0};
   mvprintw(LINES / 2 - 2, COLS / 2 - 15, "Enter game name (optional): ");
   refresh();
 
-  // Acquisisci input in modo sicuro
-  echo(); // Abilita visualizzazione del testo digitato
+  echo();
   mvgetnstr(LINES / 2, COLS / 2 - 15, game_name, sizeof(game_name) - 1);
-  noecho(); // Disabilita la visualizzazione
-
-  // Invia richiesta di creazione partita
-  Message req;
+  noecho();  Message req;
   req.type = MSG_CREATE_GAME;
-  req.game_id = 0; // Il server assegnerà l'ID
+  req.game_id = 0;
 
   if (send_message_to_server(&req) < 0) {
     mvprintw(LINES - 2, 2, "Error sending create game request.");
@@ -57,7 +52,6 @@ void show_create_game_screen(void) {
   mvprintw(LINES - 2, 2, "Request sent. Waiting for server confirmation...");
   refresh();
 
-  // Ricevi conferma dal server
   Message response;
   if (receive_message_from_server(&response) < 0) {
     mvprintw(LINES - 2, 2, "Server not responding.");
@@ -71,7 +65,6 @@ void show_create_game_screen(void) {
     mvprintw(LINES - 2, 2, "Waiting for players...");
     refresh();
 
-    // Ora entra in uno stato di attesa
     Message lobby_response;
     if (receive_message_from_server(&lobby_response) < 0) {
       mvprintw(LINES - 2, 2, "Error waiting for players.");
@@ -83,7 +76,7 @@ void show_create_game_screen(void) {
     if (lobby_response.type == MSG_GAME_STATE) {
       mvprintw(LINES - 2, 2, "Player joined! Starting game...");
       refresh();
-      // TODO: chiamare la funzione per mostrare la partita
+      // TODO: call the function to play
       // show_game_screen(&lobby_response);
     } else if (lobby_response.type == MSG_ERROR) {
       mvprintw(LINES - 2, 2, "Error during lobby: %s", lobby_response.payload.error.error_message);
@@ -176,7 +169,6 @@ void show_join_game_screen(void) {
       return;
     }
 
-    // Aspetta la risposta del server
     Message reply;
     if (receive_message_from_server(&reply) < 0) {
       mvprintw(LINES - 2, 2, "Server not responding.");
@@ -189,7 +181,7 @@ void show_join_game_screen(void) {
       mvprintw(LINES - 2, 2, "Joined game successfully. Starting game...");
       refresh();
       getch();
-      // TODO: chiamare la funzione per mostrare la partita
+      // TODO: call the function to play
       // show_game_screen(&reply);
     } else if (reply.type == MSG_ERROR) {
       mvprintw(LINES - 2, 2, "Join request rejected: %s", reply.payload.error.error_message);
