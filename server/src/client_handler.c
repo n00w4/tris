@@ -92,6 +92,8 @@ void handle_join_games(int client_socket, uint32_t game_id) {
       Message start_msg;
       start_msg.type = MSG_GAME_START;
       start_msg.game_id = game_id;
+      start_msg.payload.game_start.player_role = 1; // O
+      start_msg.payload.game_start.first_player = 0; // X starts the game
 
       send_message(game->player_x_socket, &start_msg);
       send_message(game->player_o_socket, &start_msg);
@@ -124,11 +126,14 @@ void handle_create_games(int client_socket) {
   add_game_to_list(new_game);
 
   Message response;
-  response.type = MSG_GAME_LIST;
+  response.type = MSG_GAME_STATE;
   response.game_id = new_game->id;
+
+  response.payload.game_state.current_turn = 0; // X starts the game
+  response.payload.game_state.state = GAME_WAITING; // X waits the opponent
+  strcpy(response.payload.game_state.message, "Waiting for opponent...");
 
   send_message(client_socket, &response);
 
   printf("[Handler] Game %u created by socket %d\n", new_game->id, client_socket);
 }
-

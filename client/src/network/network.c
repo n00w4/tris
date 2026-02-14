@@ -1,4 +1,7 @@
 #include "network.h"
+#include "../utils/utils.h"
+
+#include <stdlib.h>
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -32,6 +35,25 @@ void disconnect_from_server(void) {
     close(client_socket);
     client_socket = -1;
   }
+}
+
+int connect_with_config(void) {
+  Config config = {0};
+
+  if (!read_config(&config)) {
+    fprintf(stderr, "Failed to load config.\n");
+    return -1;
+  }
+
+  if (client_socket >= 0) {
+    disconnect_from_server();
+  }
+
+  if (connect_to_server(config.ip, atoi(config.port)) < 0) {
+    return -1;
+  }
+
+  return 0;
 }
 
 int send_message_to_server(const Message* msg) {

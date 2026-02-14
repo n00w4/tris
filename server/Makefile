@@ -1,38 +1,45 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -pedantic -std=c11 -Iinclude
+CFLAGS = -Wall -Wextra -pedantic -std=c11 -Iinclude -I../common/include
 LIBS = -pthread
 
 SRCDIR = src
+COMMONDIR = ../common/src
 BUILDDIR = build
 
 SOURCES = $(SRCDIR)/main.c \
           $(SRCDIR)/server.c \
           $(SRCDIR)/game.c \
-          $(SRCDIR)/protocol.c \
-          $(SRCDIR)/client_handler.c
+          $(SRCDIR)/client_handler.c \
+          $(COMMONDIR)/protocol.c
 
-OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(BUILDDIR)/%.o)
+OBJECTS = $(patsubst %.c,$(BUILDDIR)/%.o,$(notdir $(SOURCES)))
+DEPS = $(OBJECTS:.o=.d)
 
-TARGET = $(BUILDDIR)/tris_server
+TARGET = tris_server
 
 .PHONY: all clean run debug
 
 all: $(TARGET)
 
-$(TARGET): $(OBJECTS) | $(BUILDDIR)
+$(TARGET): $(OBJECTS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
 $(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -MMD -c $< -o $@
+
+$(BUILDDIR)/protocol.o: $(COMMONDIR)/protocol.c | $(BUILDDIR)
+	$(CC) $(CFLAGS) -MMD -c $< -o $@
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
 
 clean:
-	rm -rf $(BUILDDIR)
+	rm -rf $(BUILDDIR) $(TARGET)
 
 run: $(TARGET)
 	./$(TARGET)
 
-debug: CFLAGS += -DDEBUG -O0
-debug: all
+debug: CFLAGS += -ggdb -O0 -DDEBUG
+debug: clean all
+
+-include $(DEPS)
