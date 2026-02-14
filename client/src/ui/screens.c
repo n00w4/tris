@@ -13,15 +13,27 @@ int check_connection(void) {
   return 0;
 }
 
-void show_error_screen(char* error) {
+void show_error_screen(const char* error) {
   clear();
-  mvprintw(LINES / 2 - 2, COLS / 2 - 15, "%s", error);
-  refresh();
-
-  clear();
-  mvprintw(LINES / 2 - 3, COLS / 2 - 15, "Press a button to go back to the main menu");
+  attron(A_BOLD);
+  mvprintw(LINES / 2 - 6, COLS / 2 - 15, "================ ERROR ===============");
+  attroff(A_BOLD);
+  mvprintw(LINES / 2 - 3, COLS / 2 - 15, "%s", error);
+  mvprintw(LINES / 2 - 1, COLS / 2 - 15, "Press a button to go back to the main menu");
   refresh();
   getch();
+  return;
+}
+
+void show_info_screen(const char* info) {
+  clear();
+  attron(A_BOLD);
+  mvprintw(LINES / 2 - 6, COLS / 2 - 15, "================ INFO ===============");
+  attroff(A_BOLD);
+
+  move(LINES / 2 - 3, COLS / 2 - 15);
+  mvprintw(LINES / 2 - 3, COLS / 2 - 15, "%s", info);
+  refresh();
   return;
 }
 
@@ -30,6 +42,7 @@ void show_create_game_screen(void) {
     return;
   }
 
+  curs_set(1);
   clear();
 
   char game_name[64] = {0};
@@ -38,38 +51,34 @@ void show_create_game_screen(void) {
 
   echo();
   mvgetnstr(LINES / 2, COLS / 2 - 15, game_name, sizeof(game_name) - 1);
-  noecho();  Message req;
+  noecho();
+  curs_set(0);
+
+  Message req;
   req.type = MSG_CREATE_GAME;
   req.game_id = 0;
 
   if (send_message_to_server(&req) < 0) {
-    mvprintw(LINES - 2, 2, "Error sending create game request.");
-    refresh();
-    getch();
+    show_error_screen("Error sending create game request.");
     return;
   }
 
-  mvprintw(LINES - 2, 2, "Request sent. Waiting for server confirmation...");
-  refresh();
+  show_info_screen("Request sent. Waiting for server confirmation...");
 
   Message response;
   if (receive_message_from_server(&response) < 0) {
-    mvprintw(LINES - 2, 2, "Server not responding.");
-    refresh();
-    getch();
+    show_error_screen("Server not responding.");
     return;
   }
 
   if (response.type == MSG_GAME_STATE) {
-    mvprintw(LINES - 3, 2, "Game created successfully! ID: %u", response.game_id);
-    mvprintw(LINES - 2, 2, "Waiting for players...");
+    show_info_screen("Waiting for players...");
+    mvprintw(LINES - 2, 2, "Game created successfully! ID: %u", response.game_id);
     refresh();
 
     Message lobby_response;
     if (receive_message_from_server(&lobby_response) < 0) {
-      mvprintw(LINES - 2, 2, "Error waiting for players.");
-      refresh();
-      getch();
+      show_error_screen("Error waiting for players.");
       return;
     }
 
@@ -79,22 +88,14 @@ void show_create_game_screen(void) {
       // TODO: call the function to play
       // show_game_screen(&lobby_response);
     } else if (lobby_response.type == MSG_ERROR) {
-      mvprintw(LINES - 2, 2, "Error during lobby: %s", lobby_response.payload.error.error_message);
-      refresh();
-      getch();
+      show_error_screen(lobby_response.payload.error.error_message);
     } else {
-      mvprintw(LINES - 2, 2, "Unexpected server response during lobby.");
-      refresh();
-      getch();
+      show_error_screen("Unexpected server response during lobby.");
     }
   } else if (response.type == MSG_ERROR) {
-    mvprintw(LINES - 2, 2, "Create game failed: %s", response.payload.error.error_message);
-    refresh();
-    getch();
+    show_error_screen(response.payload.error.error_message);
   } else {
-    mvprintw(LINES - 2, 2, "Unexpected server response.");
-    refresh();
-    getch();
+    show_error_screen("Unexpected server response.");
   }
 }
 
@@ -108,26 +109,20 @@ void show_join_game_screen(void) {
   req.game_id = 0;
 
   if (send_message_to_server(&req) < 0) {
-    mvprintw(LINES - 2, 2, "Error sending request to server.");
-    refresh();
-    getch();
+    show_error_screen("Error sending request to server.");
     return;
   }
 
   Message response;
   if (receive_message_from_server(&response) < 0 || response.type != MSG_GAME_LIST) {
-    mvprintw(LINES - 2, 2, "Error receiving game list from server.");
-    refresh();
-    getch();
+    show_error_screen("Error receiving game list from server.");
     return;
   }
 
   GameListPayload* payload = &response.payload.game_list;
 
   if (payload->game_count == 0) {
-    mvprintw(LINES / 2, COLS / 2 - 10, "No games available.");
-    refresh();
-    getch();
+    show_info_screen("No games available.");
     return;
   }
 
@@ -163,34 +158,24 @@ void show_join_game_screen(void) {
     join_msg.game_id = payload->game_ids[choice];
 
     if (send_message_to_server(&join_msg) < 0) {
-      mvprintw(LINES - 2, 2, "Error sending join request.");
-      refresh();
-      getch();
+      show_error_screen("Error sending join request.");
       return;
     }
 
     Message reply;
     if (receive_message_from_server(&reply) < 0) {
-      mvprintw(LINES - 2, 2, "Server not responding.");
-      refresh();
-      getch();
+      show_error_screen("Server not responding.");
       return;
     }
 
     if (reply.type == MSG_GAME_STATE) {
-      mvprintw(LINES - 2, 2, "Joined game successfully. Starting game...");
-      refresh();
-      getch();
+      show_info_screen("Joined game successfully. Starting game...");
       // TODO: call the function to play
       // show_game_screen(&reply);
     } else if (reply.type == MSG_ERROR) {
-      mvprintw(LINES - 2, 2, "Join request rejected: %s", reply.payload.error.error_message);
-      refresh();
-      getch();
+      show_error_screen(reply.payload.error.error_message);
     } else {
-      mvprintw(LINES - 2, 2, "Unexpected server response.");
-      refresh();
-      getch();
+      show_error_screen("Unexpected server response.");
     }
   }
 }
