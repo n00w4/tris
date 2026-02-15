@@ -48,7 +48,7 @@ int show_main_menu(void) {
 }
 
 static void clear_field_area(int y, int x, int width) {
-  mvprintw(y, x, "%*s", width, "");
+  mvhline(y, x, ' ', width);
   refresh();
 }
 
@@ -65,7 +65,10 @@ static void print_field(int y, int x, const char* label, const char* value, int 
     attron(A_DIM);
   }
 
-  mvprintw(y, x + strlen(label), "%-*s", max_width, value[0] == '\0' ? "[Enter value]" : value);
+  clear_field_area(y, x + strlen(label), max_width);
+
+  const char* display_value = value[0] == '\0' ? " <not set> " : value;
+  mvprintw(y, x + strlen(label), "%-*s", max_width, display_value);
 
   attroff(A_REVERSE | A_DIM);
 }
@@ -108,9 +111,9 @@ void show_settings_menu(void) {
     char* buffer;
     int size;
   } fields[] = {
-    {2, config.username, sizeof(config.username) - 1},
-    {4, config.ip,       sizeof(config.ip) - 1},
-    {6, config.port,     sizeof(config.port) - 1}
+    {2, config.username, 18},
+    {4, config.ip,       15},
+    {6, config.port,     5}
   };
 
   while (!exit_menu) {
@@ -130,20 +133,27 @@ void show_settings_menu(void) {
 
       case 10: // ENTER
         if (active_field < 3) {
-          clear_field_area(menu_y + fields[active_field].offset_y, menu_x + 14, 18);
-          get_styled_input(menu_y + fields[active_field].offset_y, menu_x + 14, 
-              fields[active_field].buffer, fields[active_field].size);
-        } else {
-          save_config(&config);
-           mvprintw(menu_y + 10, menu_x + 5, "Settings saved!");
-           refresh();
-           napms(1000);
-           exit_menu = true;
-        }
+          int field_y = menu_y + fields[active_field].offset_y;
+          const char* label = NULL;
+          switch (active_field) {
+            case 0: label = "Username: "; break;
+            case 1: label = "IP Server: "; break;
+            case 2: label = "Port: "; break;
+          }
+          int field_x = menu_x + 2 + strlen(label);
+          int field_width = fields[active_field].size;
+          get_styled_input(field_y, field_x, fields[active_field].buffer, field_width);
+          } else {
+            save_config(&config);
+            mvprintw(menu_y + 10, menu_x + 5, "Settings saved!");
+            refresh();
+            napms(1000);
+            exit_menu = true;
+          }
+          break;
+      case 27: // ESC 
+        exit_menu = true;
         break;
-      case 27: // ESC
-      exit_menu = true;
-      break;
     }
   }
 }

@@ -42,17 +42,7 @@ void show_create_game_screen(void) {
     return;
   }
 
-  curs_set(1);
   clear();
-
-  char game_name[64] = {0};
-  mvprintw(LINES / 2 - 2, COLS / 2 - 15, "Enter game name (optional): ");
-  refresh();
-
-  echo();
-  mvgetnstr(LINES / 2, COLS / 2 - 15, game_name, sizeof(game_name) - 1);
-  noecho();
-  curs_set(0);
 
   Message req;
   req.type = MSG_CREATE_GAME;
