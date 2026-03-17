@@ -1,4 +1,5 @@
 #include "utils/log.h"
+
 #include <stdio.h>
 #include <stdarg.h>
 #include <time.h>
@@ -16,7 +17,7 @@ static void log_init(void) {
 
 void log_printf(const char *fmt, ...) {
   log_init();
-  
+
   if (!log_file) { return; }
 
   time_t now = time(NULL);
@@ -24,11 +25,11 @@ void log_printf(const char *fmt, ...) {
   char time_buf[20];
   strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", tm_info);
   fprintf(log_file, "[%s] ", time_buf);
-  
+
   va_list args;
   va_start(args, fmt);
   vfprintf(log_file, fmt, args);
   va_end(args);
-  
+
   fprintf(log_file, "\n");
 }

@@ -1,5 +1,6 @@
 #include "../include/protocol.h"
 
+#include <stddef.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <stdio.h>
@@ -18,16 +19,19 @@ static void write_uint32(uint8_t **buf, uint32_t val) {
   memcpy(*buf, &net, sizeof(uint32_t));
   *buf += sizeof(uint32_t);
 }
+
 static uint32_t read_uint32(const uint8_t **buf) {
   uint32_t net;
   memcpy(&net, *buf, sizeof(uint32_t));
   *buf += sizeof(uint32_t);
   return ntohl(net);
 }
+
 static void write_uint8(uint8_t **buf, uint8_t val) {
   **buf = val;
   (*buf)++;
 }
+
 static uint8_t read_uint8(const uint8_t **buf) {
   uint8_t val = **buf;
   (*buf)++;
@@ -36,7 +40,7 @@ static uint8_t read_uint8(const uint8_t **buf) {
 
 static int serialize_move(const MovePayload *src, uint8_t *dst, size_t dst_cap, size_t *out_len) {
   const size_t needed = 4 + 1 + 1;
-  if (dst_cap < needed) return -1;
+  if (dst_cap < needed) { return -1; }
 
   uint8_t *p = dst;
   write_uint32(&p, src->game_id);
@@ -47,7 +51,7 @@ static int serialize_move(const MovePayload *src, uint8_t *dst, size_t dst_cap, 
 }
 
 static int deserialize_move(const uint8_t *src, size_t src_len, MovePayload *dst) {
-  if (src_len != 4 + 1 + 1) return -1;
+  if (src_len != 4 + 1 + 1) { return -1; }
   const uint8_t *p = src;
   dst->game_id = read_uint32(&p);
   dst->row = read_uint8(&p);
@@ -57,13 +61,15 @@ static int deserialize_move(const uint8_t *src, size_t src_len, MovePayload *dst
 
 static int serialize_game_state(const GameStatePayload *src, uint8_t *dst, size_t dst_cap, size_t *out_len) {
   const size_t needed = 4 + 9 + 5 + 64;
-  if (dst_cap < needed) return -1;
+  if (dst_cap < needed) { return -1; }
 
   uint8_t *p = dst;
   write_uint32(&p, src->game_id);
-  for (int i = 0; i < 3; i++)
-    for (int j = 0; j < 3; j++)
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
       write_uint8(&p, (uint8_t)src->state_data.board[i][j]);
+    }
+  }
   write_uint8(&p, (uint8_t)src->state_data.current_turn);
   write_uint8(&p, (uint8_t)src->state_data.state);
   write_uint8(&p, (uint8_t)src->state_data.result_player_x);
@@ -77,12 +83,14 @@ static int serialize_game_state(const GameStatePayload *src, uint8_t *dst, size_
 }
 
 static int deserialize_game_state(const uint8_t *src, size_t src_len, GameStatePayload *dst) {
-  if (src_len != 4 + 9 + 5 + 64) return -1;
+  if (src_len != 4 + 9 + 5 + 64) { return -1; }
   const uint8_t *p = src;
   dst->game_id = read_uint32(&p);
-  for (int i = 0; i < 3; i++)
-    for (int j = 0; j < 3; j++)
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
       dst->state_data.board[i][j] = (char)read_uint8(&p);
+    }
+  }
   dst->state_data.current_turn = (Player)read_uint8(&p);
   dst->state_data.state = (GameState)read_uint8(&p);
   dst->state_data.result_player_x = (GameResult)read_uint8(&p);
@@ -94,50 +102,42 @@ static int deserialize_game_state(const uint8_t *src, size_t src_len, GameStateP
 
 static int serialize_error(const ErrorPayload *src, uint8_t *dst, size_t dst_cap, size_t *out_len) {
   const size_t needed = 64;
-  if (dst_cap < needed) return -1;
+  if (dst_cap < needed) { return -1; }
   memcpy(dst, src->error_message, 64);
   *out_len = needed;
   return 0;
 }
 
 static int deserialize_error(const uint8_t *src, size_t src_len, ErrorPayload *dst) {
-  if (src_len != 64) return -1;
+  if (src_len != 64) { return -1; }
   memcpy(dst->error_message, src, 64);
   return 0;
 }
 
 static int serialize_game_list(const GameListPayload *src, uint8_t *dst, size_t dst_cap, size_t *out_len) {
   const size_t needed = 40 + 1 + 10;
-  if (dst_cap < needed) return -1;
+  if (dst_cap < needed) { return -1; }
 
   uint8_t *p = dst;
-  for (int i = 0; i < 10; i++) {
-    write_uint32(&p, src->game_ids[i]);
-  }
+  for (int i = 0; i < 10; i++) { write_uint32(&p, src->game_ids[i]); }
   write_uint8(&p, src->game_count);
-  for (int i = 0; i < 10; i++) {
-    write_uint8(&p, (uint8_t)src->game_states[i]);
-  }
+  for (int i = 0; i < 10; i++) { write_uint8(&p, (uint8_t)src->game_states[i]); }
   *out_len = needed;
   return 0;
 }
 
 static int deserialize_game_list(const uint8_t *src, size_t src_len, GameListPayload *dst) {
-  if (src_len != 40 + 1 + 10) return -1;
+  if (src_len != 40 + 1 + 10) { return -1; }
   const uint8_t *p = src;
-  for (int i = 0; i < 10; i++) {
-    dst->game_ids[i] = read_uint32(&p);
-  }
+  for (int i = 0; i < 10; i++) { dst->game_ids[i] = read_uint32(&p); }
   dst->game_count = read_uint8(&p);
-  for (int i = 0; i < 10; i++) {
-    dst->game_states[i] = (GameState)read_uint8(&p);
-  }
+  for (int i = 0; i < 10; i++) { dst->game_states[i] = (GameState)read_uint8(&p); }
   return 0;
 }
 
 static int serialize_game_start(const GameStartPayload *src, uint8_t *dst, size_t dst_cap, size_t *out_len) {
   const size_t needed = 4 + 1 + 1;
-  if (dst_cap < needed) return -1;
+  if (dst_cap < needed) { return -1; }
 
   uint8_t *p = dst;
   write_uint32(&p, src->game_id);
@@ -148,7 +148,7 @@ static int serialize_game_start(const GameStartPayload *src, uint8_t *dst, size_
 }
 
 static int deserialize_game_start(const uint8_t *src, size_t src_len, GameStartPayload *dst) {
-  if (src_len != 4 + 1 + 1) return -1;
+  if (src_len != 4 + 1 + 1) { return -1; }
   const uint8_t *p = src;
   dst->game_id = read_uint32(&p);
   dst->player_role = (Player)read_uint8(&p);
@@ -158,7 +158,7 @@ static int deserialize_game_start(const uint8_t *src, size_t src_len, GameStartP
 
 static int serialize_game_over(const GameOverPayload *src, uint8_t *dst, size_t dst_cap, size_t *out_len) {
   const size_t needed = 4 + 1 + 64;
-  if (dst_cap < needed) return -1;
+  if (dst_cap < needed) { return -1; }
 
   uint8_t *p = dst;
   write_uint32(&p, src->game_id);
@@ -170,7 +170,7 @@ static int serialize_game_over(const GameOverPayload *src, uint8_t *dst, size_t 
 }
 
 static int deserialize_game_over(const uint8_t *src, size_t src_len, GameOverPayload *dst) {
-  if (src_len != 4 + 1 + 64) return -1;
+  if (src_len != 4 + 1 + 64) { return -1; }
   const uint8_t *p = src;
   dst->game_id = read_uint32(&p);
   dst->winner = read_uint8(&p);
@@ -180,7 +180,7 @@ static int deserialize_game_over(const uint8_t *src, size_t src_len, GameOverPay
 
 static int serialize_join_request(const JoinRequestPayload *src, uint8_t *dst, size_t dst_cap, size_t *out_len) {
   const size_t needed = 4 + 4 + 32;
-  if (dst_cap < needed) return -1;
+  if (dst_cap < needed) { return -1; }
 
   uint8_t *p = dst;
   write_uint32(&p, src->game_id);
@@ -192,7 +192,7 @@ static int serialize_join_request(const JoinRequestPayload *src, uint8_t *dst, s
 }
 
 static int deserialize_join_request(const uint8_t *src, size_t src_len, JoinRequestPayload *dst) {
-  if (src_len != 4 + 4 + 32) return -1;
+  if (src_len != 4 + 4 + 32) { return -1; }
   const uint8_t *p = src;
   dst->game_id = read_uint32(&p);
   dst->requesting_player_id = read_uint32(&p);
@@ -202,7 +202,7 @@ static int deserialize_join_request(const uint8_t *src, size_t src_len, JoinRequ
 
 static int serialize_join_decision(const JoinDecisionPayload *src, uint8_t *dst, size_t dst_cap, size_t *out_len) {
   const size_t needed = 4 + 1;
-  if (dst_cap < needed) return -1;
+  if (dst_cap < needed) { return -1; }
 
   uint8_t *p = dst;
   write_uint32(&p, src->game_id);
@@ -212,7 +212,7 @@ static int serialize_join_decision(const JoinDecisionPayload *src, uint8_t *dst,
 }
 
 static int deserialize_join_decision(const uint8_t *src, size_t src_len, JoinDecisionPayload *dst) {
-  if (src_len != 4 + 1) return -1;
+  if (src_len != 4 + 1) { return -1; }
   const uint8_t *p = src;
   dst->game_id = read_uint32(&p);
   dst->accepted = (read_uint8(&p) != 0);
@@ -221,7 +221,7 @@ static int deserialize_join_decision(const uint8_t *src, size_t src_len, JoinDec
 
 static int serialize_lobby_update(const LobbyUpdatePayload *src, uint8_t *dst, size_t dst_cap, size_t *out_len) {
   const size_t needed = 1 + 10 * 41;
-  if (dst_cap < needed) return -1;
+  if (dst_cap < needed) { return -1; }
 
   uint8_t *p = dst;
   write_uint8(&p, src->game_count);
@@ -237,7 +237,7 @@ static int serialize_lobby_update(const LobbyUpdatePayload *src, uint8_t *dst, s
 }
 
 static int deserialize_lobby_update(const uint8_t *src, size_t src_len, LobbyUpdatePayload *dst) {
-  if (src_len != 1 + 10 * 41) return -1;
+  if (src_len != 1 + 10 * 41) { return -1; }
   const uint8_t *p = src;
   dst->game_count = read_uint8(&p);
   for (int i = 0; i < 10; i++) {
@@ -252,7 +252,7 @@ static int deserialize_lobby_update(const uint8_t *src, size_t src_len, LobbyUpd
 
 static int serialize_status_change(const GameStatusChangePayload *src, uint8_t *dst, size_t dst_cap, size_t *out_len) {
   const size_t needed = 4 + 1 + 128;
-  if (dst_cap < needed) return -1;
+  if (dst_cap < needed) { return -1; }
 
   uint8_t *p = dst;
   write_uint32(&p, src->game_id);
@@ -264,7 +264,7 @@ static int serialize_status_change(const GameStatusChangePayload *src, uint8_t *
 }
 
 static int deserialize_status_change(const uint8_t *src, size_t src_len, GameStatusChangePayload *dst) {
-  if (src_len != 4 + 1 + 128) return -1;
+  if (src_len != 4 + 1 + 128) { return -1; }
   const uint8_t *p = src;
   dst->game_id = read_uint32(&p);
   dst->new_state = (GameState)read_uint8(&p);
@@ -274,7 +274,7 @@ static int deserialize_status_change(const uint8_t *src, size_t src_len, GameSta
 
 static int serialize_post_game_options(const PostGameOptionsPayload *src, uint8_t *dst, size_t dst_cap, size_t *out_len) {
   const size_t needed = 4 + 1;
-  if (dst_cap < needed) return -1;
+  if (dst_cap < needed) { return -1; }
 
   uint8_t *p = dst;
   write_uint32(&p, src->game_id);
@@ -284,7 +284,7 @@ static int serialize_post_game_options(const PostGameOptionsPayload *src, uint8_
 }
 
 static int deserialize_post_game_options(const uint8_t *src, size_t src_len, PostGameOptionsPayload *dst) {
-  if (src_len != 4 + 1) return -1;
+  if (src_len != 4 + 1) { return -1; }
   const uint8_t *p = src;
   dst->game_id = read_uint32(&p);
   dst->winner_wants_to_continue = (read_uint8(&p) != 0);
@@ -292,9 +292,11 @@ static int deserialize_post_game_options(const uint8_t *src, size_t src_len, Pos
 }
 
 int send_message(int socket, const Message *msg) {
-  if (!msg) return -1;
+  if (!msg) { return -1; }
 
   uint8_t payload_buf[1024];
+  memset(payload_buf, 0, sizeof(payload_buf));
+
   size_t payload_len = 0;
   int ret = -1;
 
@@ -352,6 +354,7 @@ int send_message(int socket, const Message *msg) {
   }
 
   MessageHeader header;
+  memset(&header, 0, sizeof(header));
   header.magic = htonl(PROTOCOL_MAGIC);
   header.version = htonl(PROTOCOL_VERSION);
   header.type = htonl((uint32_t)msg->type);
@@ -362,22 +365,16 @@ int send_message(int socket, const Message *msg) {
   size_t hdr_size = sizeof(header);
   while (total_sent < hdr_size) {
     ssize_t n = send(socket, hdr_ptr + total_sent, hdr_size - total_sent, 0);
-    if (n <= 0) {
-      perror("[protocol] send header");
-      return -1;
-    }
-    total_sent += n;
+    if (n <= 0) { perror("[protocol] send header"); return -1; }
+    total_sent += (size_t)n;
   }
 
   if (payload_len > 0) {
     total_sent = 0;
     while (total_sent < payload_len) {
       ssize_t n = send(socket, payload_buf + total_sent, payload_len - total_sent, 0);
-      if (n <= 0) {
-        perror("[protocol] send payload");
-        return -1;
-      }
-      total_sent += n;
+      if (n <= 0) { perror("[protocol] send payload"); return -1; }
+      total_sent += (size_t)n;
     }
   }
 
@@ -385,7 +382,7 @@ int send_message(int socket, const Message *msg) {
 }
 
 int receive_message(int socket, Message *msg) {
-  if (!msg) return -1;
+  if (!msg) { return -1; }
 
   MessageHeader header;
   size_t total_read = 0;
@@ -394,14 +391,11 @@ int receive_message(int socket, Message *msg) {
   while (total_read < hdr_size) {
     ssize_t n = recv(socket, hdr_ptr + total_read, hdr_size - total_read, 0);
     if (n <= 0) {
-      if (n == 0) {
-        fprintf(stderr, "[protocol] receive_message: connection closed\n");
-      } else {
-        perror("[protocol] recv header");
-      }
+      if (n == 0) { fprintf(stderr, "[protocol] receive_message: connection closed\n"); }
+      else { perror("[protocol] recv header"); }
       return -1;
     }
-    total_read += n;
+    total_read += (size_t)n;
   }
 
   header.magic = ntohl(header.magic);
@@ -428,18 +422,14 @@ int receive_message(int socket, Message *msg) {
   while (total_read < payload_len) {
     ssize_t n = recv(socket, payload_buf + total_read, payload_len - total_read, 0);
     if (n <= 0) {
-      if (n == 0) {
-        fprintf(stderr, "[protocol] receive_message: connection closed during payload read\n");
-      } else {
-        perror("[protocol] recv payload");
-      }
+      if (n == 0) { fprintf(stderr, "[protocol] receive_message: connection closed during payload read\n"); }
+      else { perror("[protocol] recv payload"); }
       return -1;
     }
-    total_read += n;
+    total_read += (size_t)n;
   }
 
   msg->type = (MessageType)header.type;
-
   int ret = -1;
   switch (msg->type) {
     case MSG_MOVE:
@@ -481,14 +471,11 @@ int receive_message(int socket, Message *msg) {
     case MSG_CREATE_GAME:
     case MSG_LEAVE_GAME:
     case MSG_LIST_GAMES:
-      if (payload_len != 0) {
-        fprintf(stderr, "[protocol] receive_message: type %d expects empty payload, got %zu bytes\n", msg->type, payload_len);
-        return -1;
-      }
+      if (payload_len != 0) { fprintf(stderr, "[protocol] receive_message: type %d expects empty, got %zu\n", msg->type, payload_len); return -1; }
       ret = 0;
       break;
     default:
-      fprintf(stderr, "[protocol] receive_message: unknown message type %d\n", msg->type);
+      fprintf(stderr, "[protocol] receive_message: unknown type %d\n", msg->type);
       return -1;
   }
 
@@ -499,4 +486,3 @@ int receive_message(int socket, Message *msg) {
 
   return 0;
 }
-

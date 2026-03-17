@@ -1,5 +1,7 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -pedantic -std=c11 -D_POSIX_C_SOURCE=200809L  -Iinclude -I../common/include 
+CFLAGS_BASE = -Wall -Wextra -pedantic -std=c11 -D_POSIX_C_SOURCE=200809L -Iinclude -I../common/include
+HARDENING_CFLAGS = -D_FORTIFY_SOURCE=2 -fstack-protector-strong -Wformat -Wformat-security -Wshadow -Wconversion
+LDFLAGS = -Wl,-z,relro,-z,now
 LIBS = -pthread
 
 SRCDIR = src
@@ -17,12 +19,18 @@ VPATH_DIRS = $(shell find $(SRCDIR) -type d | tr '\n' ':')
 VPATH_DIRS += $(COMMONDIR)
 vpath %.c $(VPATH_DIRS)
 
-.PHONY: all clean run debug
+.PHONY: all clean run debug release
 
-all: $(TARGET)
+all: release
+
+release: CFLAGS = $(CFLAGS_BASE) $(HARDENING_CFLAGS) -O2
+release: $(TARGET)
+
+debug: CFLAGS = $(CFLAGS_BASE) -ggdb -O0 -DDEBUG
+debug: clean all
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBS) $(LDFLAGS)
 
 $(BUILDDIR)/%.o: %.c | $(BUILDDIR)
 	$(CC) $(CFLAGS) -MMD -c $< -o $@
@@ -33,10 +41,7 @@ $(BUILDDIR):
 clean:
 	rm -rf $(BUILDDIR) $(TARGET)
 
-run: $(TARGET)
+run: release
 	./$(TARGET)
-
-debug: CFLAGS += -ggdb -O0 -DDEBUG
-debug: clean all
 
 -include $(DEPS)

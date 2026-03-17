@@ -1,20 +1,21 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <errno.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-
 #include "server.h"
 #include "game.h"
 #include "protocol.h"
 #include "client_handler.h"
 
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <stdatomic.h>
+
 Client clients[MAX_CLIENTS];
-static int active_clients_count = 0; 
+static int active_clients_count = 0;
 pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 atomic_int active_thread_count = 0;
@@ -110,7 +111,7 @@ int create_server_socket(int port) {
 
   address.sin_family = AF_INET;
   address.sin_addr.s_addr = INADDR_ANY;
-  address.sin_port = htons(port);
+  address.sin_port = htons((uint16_t)port);
 
   if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
     perror("[server] bind failed");
@@ -134,42 +135,38 @@ void* handle_client(void* arg) {
   int client_socket = *(int*)arg;
   free(arg);
 
-  // Add client to active list
+  // add client to the active list
   pthread_mutex_lock(&clients_mutex);
   Client* client = add_client(client_socket);
   pthread_mutex_unlock(&clients_mutex);
 
   if (!client) {
-    // Server full
+    // Server is full
     Message err;
+    memset(&err, 0, sizeof(err));
     err.type = MSG_ERROR;
     snprintf(err.payload.error.error_message,
         sizeof(err.payload.error.error_message),
         "%s", MAX_CONN_MSG);
     send_message(client_socket, &err);
     close(client_socket);
-
     atomic_fetch_sub(&active_thread_count, 1);
     return NULL;
   }
 
-  // Main message loop
+  // main message processing loop
   Message msg;
   while (1) {
     memset(&msg, 0, sizeof(msg));
     int ret = receive_message(client_socket, &msg);
-    if (ret == -2) {
-      printf("[server] Client socket %d closed connection (EOF)\n", client_socket);
-      break;
-    }
-    if (ret == -1) {
-      fprintf(stderr, "[server] receive_message error on socket %d: %s\n",
-          client_socket, strerror(errno));
+    if (ret < 0) {   // error or connection closed
+      printf("[server] Client socket %d disconnected\n", client_socket);
       break;
     }
     handle_message(client_socket, &msg);
   }
 
+  // remove client from list and notify game manager
   int game_id = -1;
   pthread_mutex_lock(&clients_mutex);
   for (int i = 0; i < MAX_CLIENTS; i++) {
@@ -191,7 +188,8 @@ void* handle_client(void* arg) {
 }
 
 void find_username_by_socket(int socket, char *username_output, size_t out_size) {
-  if (!username_output || out_size == 0) return;
+  if (!username_output || out_size == 0) { return; }
+
   pthread_mutex_lock(&clients_mutex);
   int found = 0;
   for (int i = 0; i < MAX_CLIENTS; i++) {
@@ -203,6 +201,7 @@ void find_username_by_socket(int socket, char *username_output, size_t out_size)
     }
   }
   pthread_mutex_unlock(&clients_mutex);
+
   if (!found) {
     strncpy(username_output, "Unknown", out_size - 1);
     username_output[out_size - 1] = '\0';

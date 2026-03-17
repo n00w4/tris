@@ -2,6 +2,7 @@
 #define NETWORK_H
 
 #include "utils/queue.h"
+
 #include <stdbool.h>
 #include <arpa/inet.h>
 

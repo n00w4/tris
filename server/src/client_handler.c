@@ -3,6 +3,7 @@
 #include "protocol.h"
 #include "server.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -18,7 +19,7 @@ static void build_lobby_message(Message *out_msg, const GameSnapshot *snapshots,
     strncpy(out_msg->payload.lobby_update.games[i].owner_name,
         snapshots[i].owner_name,
         sizeof(out_msg->payload.lobby_update.games[i].owner_name)-1);
-    
+
     out_msg->payload.lobby_update.games[i].owner_name[
       sizeof(out_msg->payload.lobby_update.games[i].owner_name)-1] = '\0';
     out_msg->payload.lobby_update.games[i].players_connected = snapshots[i].players_connected;
@@ -128,7 +129,7 @@ void handle_list_game(int client_socket) {
 
 void handle_create_game(int client_socket) {
   if (client_is_playing(client_socket)) {
-    Message err;
+    Message err = {0};
     err.type = MSG_ERROR;
     snprintf(err.payload.error.error_message,
         sizeof(err.payload.error.error_message),
@@ -143,7 +144,7 @@ void handle_create_game(int client_socket) {
   uint32_t new_game_id;
   if (game_manager_create_game(game_manager, client_socket, username,
         &new_game_id) < 0) {
-    Message err;
+    Message err = {0};
     err.type = MSG_ERROR;
     snprintf(err.payload.error.error_message,
         sizeof(err.payload.error.error_message),
@@ -158,13 +159,13 @@ void handle_create_game(int client_socket) {
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (clients[i].is_active && clients[i].socket == client_socket) {
       clients[i].is_playing = true;
-      clients[i].current_game_id = new_game_id;
+      clients[i].current_game_id = (int)new_game_id;
       break;
     }
   }
   pthread_mutex_unlock(&clients_mutex);
 
-  Message succ;
+  Message succ = {0};
   succ.type = MSG_GAME_STATUS_CHANGE;
   succ.payload.status_change.game_id = new_game_id;
   succ.payload.status_change.new_state = GAME_WAITING;
@@ -179,7 +180,7 @@ void handle_create_game(int client_socket) {
 void handle_join_request(int client_socket, uint32_t game_id) {
   printf("[Handler] Received JOIN_GAME for game_id=%u from socket %d\n", game_id, client_socket);
   if (client_is_playing(client_socket)) {
-    Message err;
+    Message err = {0};
     err.type = MSG_ERROR;
     snprintf(err.payload.error.error_message,
         sizeof(err.payload.error.error_message),
@@ -194,7 +195,7 @@ void handle_join_request(int client_socket, uint32_t game_id) {
   int ret = game_manager_join_game(game_manager, game_id, client_socket,
       username);
   if (ret == -1) {
-    Message err;
+    Message err = {0};
     err.type = MSG_ERROR;
     snprintf(err.payload.error.error_message,
         sizeof(err.payload.error.error_message),
@@ -206,13 +207,16 @@ void handle_join_request(int client_socket, uint32_t game_id) {
     // send request to owner
     int owner_sock = game_manager_get_owner_socket(game_manager, game_id);
     if (owner_sock != -1) {
-      Message req;
+      Message req = {0};
       memset(&req, 0, sizeof(req));
       req.type = MSG_JOIN_REQUEST;
       req.payload.join_request.game_id = game_id;
-      req.payload.join_request.requesting_player_id = client_socket;
-      strncpy(req.payload.join_request.requesting_player_name, username,
-          sizeof(req.payload.join_request.requesting_player_name)-1);
+      req.payload.join_request.requesting_player_id = (uint32_t)client_socket;
+
+      snprintf(req.payload.join_request.requesting_player_name,
+          sizeof(req.payload.join_request.requesting_player_name),
+          "%s", username);
+
       req.payload.join_request.requesting_player_name[
         sizeof(req.payload.join_request.requesting_player_name)-1] = '\0';
       send_message(owner_sock, &req);
@@ -226,7 +230,7 @@ void handle_join_decision(int client_socket, bool accepted, uint32_t game_id) {
   Player assigned_role;
   int ret = game_manager_join_decision(game_manager, game_id, accepted ? 1 : 0, &assigned_role);
   if (ret < 0) {
-    Message err;
+    Message err = {0};
     err.type = MSG_ERROR;
     snprintf(err.payload.error.error_message,
         sizeof(err.payload.error.error_message),
@@ -287,13 +291,13 @@ void handle_join_decision(int client_socket, bool accepted, uint32_t game_id) {
       if (clients[i].is_active) {
         if (clients[i].socket == x_sock || clients[i].socket == o_sock) {
           clients[i].is_playing = true;
-          clients[i].current_game_id = game_id;
+          clients[i].current_game_id = (int)game_id;
         }
       }
     }
     pthread_mutex_unlock(&clients_mutex);
   } else {
-    // Reject and notify waiting player
+    // reject and notify waiting player
     int waiting_sock;
     if (game_manager_get_waiting_socket(game_manager, game_id, &waiting_sock) == 0 &&
         waiting_sock != -1) {
@@ -334,7 +338,7 @@ void handle_move(int client_socket, Message* msg) {
     return;
   }
 
-  // Get current game state
+  // get current game state
   GameCommonState state;
   if (game_manager_get_game_state(game_manager, game_id, &state) < 0) {
     fprintf(stderr, "[Handler] Failed to get game state after move\n");
@@ -346,7 +350,7 @@ void handle_move(int client_socket, Message* msg) {
     memset(&over_msg, 0, sizeof(over_msg));
     over_msg.type = MSG_GAME_OVER;
     over_msg.payload.game_over.game_id = game_id;
-    over_msg.payload.game_over.winner = winner;
+    over_msg.payload.game_over.winner = (uint8_t)winner;
     snprintf(over_msg.payload.game_over.message,
         sizeof(over_msg.payload.game_over.message),
         winner == RESULT_DRAW ? "Game ended in a draw!" :
@@ -372,7 +376,7 @@ void handle_move(int client_socket, Message* msg) {
       send_message(winner_sock, &post_msg);
     }
   } else {
-    // Send updated state to both (with correct player_role)
+    // send updated state to both (with correct player_role)
     Message state_x, state_o;
     memset(&state_x, 0, sizeof(state_x));
     memset(&state_o, 0, sizeof(state_o));
@@ -402,7 +406,7 @@ void handle_post_game_decision(int client_socket, uint32_t game_id, bool wants_t
       wants_to_continue ? 1 : 0,
       &both_decided);
   if (ret < 0) {
-    Message err;
+    Message err = {0};
     err.type = MSG_ERROR;
     snprintf(err.payload.error.error_message,
         sizeof(err.payload.error.error_message),
@@ -450,7 +454,7 @@ void handle_post_game_decision(int client_socket, uint32_t game_id, bool wants_t
           // 2 players stay case
           client_set_playing(x_sock, true, game_id);
           client_set_playing(o_sock, true, game_id);
-          
+
           Message start_x, start_o;
           memset(&start_x, 0, sizeof(start_x));
           memset(&start_o, 0, sizeof(start_o));
@@ -500,7 +504,7 @@ void handle_leave_game(int client_socket, uint32_t game_id) {
   int ret = game_manager_leave_game(game_manager, game_id, client_socket);
   if (ret < 0) {
     fprintf(stderr, "[Handler] Failed to leave game %u for socket %d\n", game_id, client_socket);
-    // Even if leave fails, the client should not be considered in a game anymore
+    // even if leave fails, the client should not be considered in a game anymore
     client_set_playing(client_socket, false, 0);
   } else {
     printf("[Handler] Player left game %u\n", game_id);

@@ -5,10 +5,10 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <stdatomic.h>
 
 #define MAX_CLIENTS 100
 #define MAX_GAMES 50
@@ -34,11 +34,11 @@ extern struct GameManager *game_manager;
 
 Client* add_client(int client_socket);
 void remove_client(int client_socket);
+int server_get_active_clients(void);
 void initialize_server(void);
 void cleanup_server(void);
 int create_server_socket(int port);
 void* handle_client(void* arg);
 void find_username_by_socket(int socket, char *username_output, size_t out_size);
-int server_get_active_clients(void);
 
 #endif

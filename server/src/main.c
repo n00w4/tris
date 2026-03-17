@@ -1,3 +1,5 @@
+#include "server.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/socket.h>
@@ -9,8 +11,6 @@
 #include <errno.h>
 #include <time.h>
 
-#include "server.h"
-
 static volatile sig_atomic_t keep_running = 1;
 
 static void handle_signal(int sig) {
@@ -18,11 +18,11 @@ static void handle_signal(int sig) {
   keep_running = 0;
 }
 
-int main(void) {  
+int main(void) {
   signal(SIGPIPE, SIG_IGN);
 
-  // Signal handlers for graceful shutdown
-  struct sigaction sa;
+  // signal handlers for graceful shutdown
+  struct sigaction sa = {0};
   sa.sa_handler = handle_signal;
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = 0;
@@ -47,7 +47,7 @@ int main(void) {
   printf("Waiting for connections... (Ctrl+C to stop)\n");
 
   while (keep_running) {
-    struct sockaddr_in client_addr;
+    struct sockaddr_in client_addr = {0};
     socklen_t client_len = sizeof(client_addr);
     int client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_len);
     if (client_socket < 0) {
@@ -82,10 +82,10 @@ int main(void) {
 
   printf("\nShutting down server...\n");
 
-  // Close server socket to prevent new connections
+  // close server socket to prevent new connections
   close(server_socket);
 
-  // Notify all active clients by closing their sockets
+  // notify all active clients by closing their sockets
   pthread_mutex_lock(&clients_mutex);
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (clients[i].is_active) {
@@ -104,8 +104,7 @@ int main(void) {
     waited_ms += 100;
   }
   if (atomic_load(&active_thread_count) > 0) {
-    fprintf(stderr, "[main] Warning: %d thread(s) still active after timeout\n",
-        atomic_load(&active_thread_count));
+    fprintf(stderr, "[main] Warning: %d thread(s) still active after timeout\n", atomic_load(&active_thread_count));
   }
 
   cleanup_server();

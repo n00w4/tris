@@ -3,6 +3,7 @@
 #include "protocol.h"
 #include "utils/queue.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -26,7 +27,7 @@ struct network_ctx {
 
 static UIEvent* message_to_event(const Message* msg) {
   UIEvent* ev = malloc(sizeof(UIEvent));
-  if (!ev) return NULL;
+  if (!ev) { return NULL; }
 
   switch (msg->type) {
     case MSG_GAME_STATE:
@@ -106,9 +107,9 @@ static void* network_thread_func(void* arg) {
   }
 
   // connect to the server
-  struct sockaddr_in addr;
+  struct sockaddr_in addr = {0};
   addr.sin_family = AF_INET;
-  addr.sin_port = htons(ctx->port);
+  addr.sin_port = htons((uint16_t)ctx->port);
   if (inet_pton(AF_INET, ctx->ip, &addr.sin_addr) <= 0) {
     thread_exit_error(ctx, "Invalid IP address");
     return NULL;
@@ -121,9 +122,8 @@ static void* network_thread_func(void* arg) {
 
   // main loop
   while (atomic_load(&ctx->running)) {
-    // pop ui queue 
-    Message* cmd; 
-
+    // pop ui queue
+    Message* cmd;
     while (queue_try_pop(ctx->from_ui, (void**)&cmd) == 0) {
       if (send_message(ctx->sock, cmd) < 0) {
         perror("[network] send_message");
@@ -135,32 +135,26 @@ static void* network_thread_func(void* arg) {
               "Send failed, disconnecting");
           queue_push(ctx->to_ui, ev);
         }
-
-        if (cmd->type == MSG_JOIN_GAME) {
-          fprintf(stderr, "[network] Sending JOIN_GAME with game_id=%u\n", cmd->payload.join_request.game_id);
-          fflush(stderr);
-        }
-
         atomic_store(&ctx->running, 0);
         free(cmd);
         break;
       }
       free(cmd);
     }
-    if (!atomic_load(&ctx->running)) break;
+    if (!atomic_load(&ctx->running)) { break; }
 
-    // wait for data from socket (100 ms) 
+    // wait for data from socket (100 ms)
     struct pollfd pfd = { .fd = ctx->sock, .events = POLLIN };
     int pret = poll(&pfd, 1, 100);
     if (pret < 0) {
-      if (errno == EINTR) continue;
+      if (errno == EINTR) { continue; }
       perror("[network] poll");
       break;
     }
     if (pret > 0 && (pfd.revents & POLLIN)) {
-      Message msg;
+      Message msg = {0};
       int r = receive_message(ctx->sock, &msg);
-      if (r == -2) {   // connection closed from server 
+      if (r == -2) {   // connection closed from server
         UIEvent* ev = malloc(sizeof(UIEvent));
         if (ev) {
           ev->type = UI_EVENT_DISCONNECTED;
@@ -189,8 +183,7 @@ static void* network_thread_func(void* arg) {
               "Out of memory processing server message");
           queue_push(ctx->to_ui, err_ev);
         }
-        fprintf(stderr, "[network] OOM: dropped message type %d\n",
-            msg.type);
+        fprintf(stderr, "[network] OOM: dropped message type %d\n", msg.type);
       } else {
         queue_push(ctx->to_ui, ev);
       }
@@ -198,22 +191,20 @@ static void* network_thread_func(void* arg) {
   }
 
   drain_message_queue(ctx->from_ui);
-
   close(ctx->sock);
   ctx->sock = -1;
   atomic_store(&ctx->running, 0);
   return NULL;
 }
 
-network_ctx* network_start(const char* ip, int port,
-    queue_t* to_ui, queue_t* from_ui) {
-  if (!ip || !to_ui || !from_ui) return NULL;
+network_ctx* network_start(const char* ip, int port, queue_t* to_ui, queue_t* from_ui) {
+  if (!ip || !to_ui || !from_ui) { return NULL; }
 
   network_ctx* ctx = malloc(sizeof(network_ctx));
-  if (!ctx) return NULL;
+  if (!ctx) { return NULL; }
 
-  strncpy(ctx->ip, ip, sizeof(ctx->ip)-1);
-  ctx->ip[sizeof(ctx->ip)-1] = '\0';
+  strncpy(ctx->ip, ip, sizeof(ctx->ip) - 1);
+  ctx->ip[sizeof(ctx->ip) - 1] = '\0';
   ctx->port = port;
   ctx->sock = -1;
   ctx->to_ui = to_ui;
@@ -230,7 +221,7 @@ network_ctx* network_start(const char* ip, int port,
 }
 
 void network_stop(network_ctx* ctx) {
-  if (!ctx) return;
+  if (!ctx) { return; }
   atomic_store(&ctx->running, 0);
   if (ctx->sock >= 0) {
     shutdown(ctx->sock, SHUT_RDWR);
@@ -238,16 +229,16 @@ void network_stop(network_ctx* ctx) {
 }
 
 void network_wait(network_ctx* ctx) {
-  if (!ctx) return;
+  if (!ctx) { return; }
   pthread_join(ctx->thread, NULL);
 }
 
 void network_destroy(network_ctx* ctx) {
-  if (!ctx) return;
+  if (!ctx) { return; }
   free(ctx);
 }
 
 bool network_is_connected(network_ctx* ctx) {
-  if (!ctx) return false;
+  if (!ctx) { return false; }
   return (ctx->sock >= 0 && atomic_load(&ctx->running));
 }

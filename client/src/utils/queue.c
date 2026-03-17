@@ -1,4 +1,5 @@
 #include "utils/queue.h"
+
 #include <stdlib.h>
 #include <pthread.h>
 #include <stdatomic.h>
@@ -17,10 +18,10 @@ struct queue {
 };
 
 queue_t *queue_create(size_t capacity) {
-  if (capacity == 0) return NULL;
+  if (capacity == 0) { return NULL; }
 
   queue_t *q = malloc(sizeof(queue_t));
-  if (!q) return NULL;
+  if (!q) { return NULL; }
 
   q->buffer = malloc(sizeof(void *) * capacity);
   if (!q->buffer) {
@@ -57,7 +58,7 @@ queue_t *queue_create(size_t capacity) {
 }
 
 void queue_destroy(queue_t *q) {
-  if (!q) return;
+  if (!q) { return; }
 
   pthread_mutex_lock(&q->lock);
   assert(q->count == 0 &&

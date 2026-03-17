@@ -6,6 +6,7 @@
 #include "network/network.h"
 
 #include <ncurses.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <locale.h>
@@ -60,6 +61,7 @@ typedef struct {
   SettingsMode settings_mode;
   char settings_edit_buf[32];
   int menu_selection;
+  int last_game_winner;           // winner of the last game (PLAYER_X, PLAYER_O, RESULT_DRAW, RESULT_NONE)
 } UIState;
 
 static atomic_int ui_running = 0;
@@ -115,7 +117,7 @@ static bool ensure_network_connected(UIState* state, queue_t* to_net, queue_t* f
   state->net_ctx = network_start(state->config.ip, atoi(state->config.port),
       from_net, to_net);
   if (!state->net_ctx) {
-    strncpy(state->error_message, "Failed to connect to server", sizeof(state->error_message)-1);
+    strncpy(state->error_message, "Failed to connect to server", sizeof(state->error_message) - 1);
     return false;
   }
   napms(100);
@@ -124,17 +126,17 @@ static bool ensure_network_connected(UIState* state, queue_t* to_net, queue_t* f
     network_wait(state->net_ctx);
     network_destroy(state->net_ctx);
     state->net_ctx = NULL;
-    strncpy(state->error_message, "Could not connect to server", sizeof(state->error_message)-1);
+    strncpy(state->error_message, "Could not connect to server", sizeof(state->error_message) - 1);
     return false;
   }
   state->is_connected = true;
   return true;
 }
 
-// -------------------- Menu action helper --------------------
+// menu action helper
 static void do_menu_action(UIState* state, int action, queue_t* to_net, queue_t* from_net) {
   switch (action) {
-    case 0: // Create game
+    case 0: // create game
       if (ensure_network_connected(state, to_net, from_net)) {
         Message* cmd = alloc_message();
         if (cmd) {
@@ -143,7 +145,7 @@ static void do_menu_action(UIState* state, int action, queue_t* to_net, queue_t*
         }
       }
       break;
-    case 1: // Join game (enters lobby)
+    case 1: // join game (enters lobby)
       if (ensure_network_connected(state, to_net, from_net)) {
         Message* cmd = alloc_message();
         if (cmd) {
@@ -153,16 +155,16 @@ static void do_menu_action(UIState* state, int action, queue_t* to_net, queue_t*
         }
       }
       break;
-    case 2: // Settings
+    case 2: // settings
       read_config(&state->config);
       state->settings_active_field = 0;
       state->settings_mode = SETTINGS_NAV;
       state->screen = SCREEN_SETTINGS;
       break;
-    case 3: // Help
+    case 3: // help
       state->screen = SCREEN_HELP;
       break;
-    case 4: // Quit
+    case 4: // quit
       ui_stop();
       break;
     default:
@@ -170,11 +172,11 @@ static void do_menu_action(UIState* state, int action, queue_t* to_net, queue_t*
   }
 }
 
-// -------------------- Drawing --------------------
+// drawing functions
 static void draw_main_menu(UIState* state) {
   clear();
-  int mid_y = LINES/2 - 4;
-  int mid_x = (COLS - 20)/2;
+  int mid_y = LINES / 2 - 4;
+  int mid_x = (COLS - 20) / 2;
   mvprintw(mid_y, mid_x, "=== TRIS ===");
 
   const char* items[] = {
@@ -197,17 +199,17 @@ static void draw_main_menu(UIState* state) {
     }
   }
 
-  mvprintw(mid_y + 2 + item_count + 1, (COLS - 40)/2, "Use arrows to move, ENTER to select");
+  mvprintw(mid_y + 2 + item_count + 1, (COLS - 40) / 2, "Use arrows to move, ENTER to select");
   draw_status_bar(state);
   refresh();
 }
 
 static void draw_lobby(UIState* state) {
   clear();
-  mvprintw(1, (COLS - 30)/2, "=== Available Games ===");
+  mvprintw(1, (COLS - 30) / 2, "=== Available Games ===");
   int y = 3;
   for (int i = 0; i < state->lobby_count && i < 10; i++) {
-    mvprintw(y++, 4, "%d. %s (%d players)", i+1,
+    mvprintw(y++, 4, "%d. %s (%d players)", i + 1,
         state->lobby_games[i].owner_name,
         state->lobby_games[i].players_connected);
   }
@@ -221,25 +223,25 @@ static void draw_lobby(UIState* state) {
 
 static void draw_game_waiting(UIState* state) {
   clear();
-  mvprintw(LINES/2 - 2, (COLS - 20)/2, "Waiting for opponent...");
-  mvprintw(LINES/2,     (COLS - 20)/2, "Game ID: %u", state->current_game_id);
-  mvprintw(LINES/2 + 2, (COLS - 20)/2, "Press ESC to cancel");
+  mvprintw(LINES / 2 - 2, (COLS - 20) / 2, "Waiting for opponent...");
+  mvprintw(LINES / 2, (COLS - 20) / 2, "Game ID: %u", state->current_game_id);
+  mvprintw(LINES / 2 + 2, (COLS - 20) / 2, "Press ESC to cancel");
   draw_status_bar(state);
   refresh();
 }
 
 static void draw_game_board(UIState* state) {
   clear();
-  int start_y = (LINES - 8) / 2;  // 8 rows (3 cell + 2 lines + space info)
-  int start_x = (COLS - 19) / 2;  // 19 cols (3 celle * 5 + 2 linee * 2)
+  int start_y = (LINES - 8) / 2;  // 8 rows (3 cells + 2 lines + space info)
+  int start_x = (COLS - 19) / 2;  // 19 cols (3 cells * 5 + 2 lines * 2)
 
-  // Vertical inner lines (two)
+  // vertical inner lines (two)
   for (int j = 1; j < 3; j++) {
     int x = start_x + j * 6;
     mvvline(start_y, x, ACS_VLINE, 9); // total height 9 (3 cells * 3)
   }
 
-  // Horizontal inner lines (two)
+  // horizontal inner lines (two)
   for (int i = 1; i < 3; i++) {
     int y = start_y + i * 3;
     mvhline(y, start_x, ACS_HLINE, 19);
@@ -247,7 +249,7 @@ static void draw_game_board(UIState* state) {
     mvaddch(y, start_x + 12, ACS_PLUS);
   }
 
-  // Symbols in cells
+  // symbols in cells
   for (int i = 0; i < 3; i++) {
     for (int j = 0; j < 3; j++) {
       int y = start_y + i * 3 + 1; // vertical center
@@ -263,11 +265,9 @@ static void draw_game_board(UIState* state) {
     }
   }
 
-  // Game info
-  mvprintw(start_y + 10, start_x, "Turn: %s",
-      state->game_state.current_turn == PLAYER_X ? "X" : "O");
-  mvprintw(start_y + 11, start_x, "You are: %s",
-      state->player_role == PLAYER_X ? "X" : "O");
+  // game info
+  mvprintw(start_y + 10, start_x, "Turn: %s", state->game_state.current_turn == PLAYER_X ? "X" : "O");
+  mvprintw(start_y + 11, start_x, "You are: %s", state->player_role == PLAYER_X ? "X" : "O");
   mvprintw(LINES - 3, 2, "Use arrow keys to move, ENTER to place, ESC to quit");
   draw_status_bar(state);
   refresh();
@@ -275,33 +275,51 @@ static void draw_game_board(UIState* state) {
 
 static void draw_join_request(UIState* state) {
   clear();
-  mvprintw(LINES/2 - 2, (COLS - 30)/2, "Join request from: %s", state->join_requester_name);
-  mvprintw(LINES/2,     (COLS - 30)/2, "Accept? (y/n)");
+  mvprintw(LINES / 2 - 2, (COLS - 30) / 2, "Join request from: %s", state->join_requester_name);
+  mvprintw(LINES / 2, (COLS - 30) / 2, "Accept? (y/n)");
   draw_status_bar(state);
   refresh();
 }
 
 static void draw_post_game(UIState* state) {
   clear();
-  mvprintw(LINES/2 - 2, (COLS - 30)/2, "%s", state->post_game_message);
-  mvprintw(LINES/2,     (COLS - 30)/2, "Play again? (y/n)");
+  char display_msg[256];
+  if (state->last_game_winner == RESULT_DRAW) {
+    snprintf(display_msg, sizeof(display_msg), "%s", state->post_game_message);
+  } else {
+    int player_won = ((int)state->player_role == state->last_game_winner);
+    snprintf(display_msg, sizeof(display_msg), "%s! %s",
+        player_won ? "YOU WIN" : "YOU LOSE",
+        state->post_game_message);
+  }
+  mvprintw(LINES / 2 - 2, (COLS - 30) / 2, "%s", display_msg);
+  mvprintw(LINES / 2, (COLS - 30) / 2, "Play again? (y/n)");
   draw_status_bar(state);
   refresh();
 }
 
 static void draw_game_over(UIState* state) {
   clear();
-  int msg_len = strlen(state->post_game_message);
-  mvprintw(LINES/2 - 2, (COLS - msg_len)/2, "%s", state->post_game_message);
-  mvprintw(LINES/2, (COLS - 30)/2, "Press any key to return to menu...");
+  char display_msg[256];
+  if (state->last_game_winner == RESULT_DRAW) {
+    snprintf(display_msg, sizeof(display_msg), "%s", state->post_game_message);
+  } else {
+    int player_won = ((int)state->player_role == state->last_game_winner);
+    snprintf(display_msg, sizeof(display_msg), "%s! %s",
+        player_won ? "YOU WIN" : "YOU LOSE",
+        state->post_game_message);
+  }
+  int msg_len = (int)strlen(display_msg);
+  mvprintw(LINES / 2 - 2, (COLS - msg_len) / 2, "%s", display_msg);
+  mvprintw(LINES / 2, (COLS - 30) / 2, "Press any key to return to menu...");
   draw_status_bar(state);
   refresh();
 }
 
 static void draw_disconnected(UIState* state) {
   clear();
-  mvprintw(LINES/2, (COLS - 20)/2, "Disconnected from server.");
-  mvprintw(LINES/2 + 1, (COLS - 20)/2, "Exiting...");
+  mvprintw(LINES / 2, (COLS - 20) / 2, "Disconnected from server.");
+  mvprintw(LINES / 2 + 1, (COLS - 20) / 2, "Exiting...");
   draw_status_bar(state);
   refresh();
 }
@@ -309,58 +327,66 @@ static void draw_disconnected(UIState* state) {
 static void draw_settings(UIState* state) {
   clear();
   attron(A_BOLD);
-  mvprintw(2, (COLS - 16)/2, "=== SETTINGS ===");
+  mvprintw(2, (COLS - 16) / 2, "=== SETTINGS ===");
   attroff(A_BOLD);
 
   int y = 5;
-  int x = (COLS - 30)/2;
+  int x = (COLS - 30) / 2;
 
-  if (state->settings_active_field == 0 && state->settings_mode == SETTINGS_NAV)
+  if (state->settings_active_field == 0 && state->settings_mode == SETTINGS_NAV) {
     attron(A_REVERSE);
+  }
   mvprintw(y, x, "Username: ");
   if (state->settings_active_field == 0 && state->settings_mode == SETTINGS_EDIT) {
     printw("%-20s", state->settings_edit_buf);
   } else {
     printw("%s", state->config.username);
   }
-  if (state->settings_active_field == 0 && state->settings_mode == SETTINGS_NAV)
+  if (state->settings_active_field == 0 && state->settings_mode == SETTINGS_NAV) {
     attroff(A_REVERSE);
+  }
 
   y += 2;
-  if (state->settings_active_field == 1 && state->settings_mode == SETTINGS_NAV)
+  if (state->settings_active_field == 1 && state->settings_mode == SETTINGS_NAV) {
     attron(A_REVERSE);
+  }
   mvprintw(y, x, "IP: ");
   if (state->settings_active_field == 1 && state->settings_mode == SETTINGS_EDIT) {
     printw("%-15s", state->settings_edit_buf);
   } else {
     printw("%s", state->config.ip);
   }
-  if (state->settings_active_field == 1 && state->settings_mode == SETTINGS_NAV)
+  if (state->settings_active_field == 1 && state->settings_mode == SETTINGS_NAV) {
     attroff(A_REVERSE);
+  }
 
   y += 2;
-  if (state->settings_active_field == 2 && state->settings_mode == SETTINGS_NAV)
+  if (state->settings_active_field == 2 && state->settings_mode == SETTINGS_NAV) {
     attron(A_REVERSE);
+  }
   mvprintw(y, x, "Port: ");
   if (state->settings_active_field == 2 && state->settings_mode == SETTINGS_EDIT) {
     printw("%-5s", state->settings_edit_buf);
   } else {
     printw("%s", state->config.port);
   }
-  if (state->settings_active_field == 2 && state->settings_mode == SETTINGS_NAV)
+  if (state->settings_active_field == 2 && state->settings_mode == SETTINGS_NAV) {
     attroff(A_REVERSE);
+  }
 
   y += 4;
-  if (state->settings_active_field == 3 && state->settings_mode == SETTINGS_NAV)
+  if (state->settings_active_field == 3 && state->settings_mode == SETTINGS_NAV) {
     attron(A_REVERSE | A_BOLD);
+  }
   mvprintw(y, x + 10, "[ SAVE ]");
-  if (state->settings_active_field == 3 && state->settings_mode == SETTINGS_NAV)
+  if (state->settings_active_field == 3 && state->settings_mode == SETTINGS_NAV) {
     attroff(A_REVERSE | A_BOLD);
+  }
 
   if (state->settings_mode == SETTINGS_EDIT) {
-    mvprintw(LINES-2, 2, "Editing: type and press ENTER to confirm, ESC to cancel");
+    mvprintw(LINES - 2, 2, "Editing: type and press ENTER to confirm, ESC to cancel");
   } else {
-    mvprintw(LINES-2, 2, "Arrows: navigate   ENTER: edit/save   ESC: exit");
+    mvprintw(LINES - 2, 2, "Arrows: navigate   ENTER: edit/save   ESC: exit");
   }
   draw_status_bar(state);
   refresh();
@@ -369,7 +395,7 @@ static void draw_settings(UIState* state) {
 static void draw_help(UIState* state) {
   clear();
   attron(A_BOLD);
-  mvprintw(1, COLS/2 - 10, "=== TRIS HELP ===");
+  mvprintw(1, COLS / 2 - 10, "=== TRIS HELP ===");
   attroff(A_BOLD);
 
   int y = 4;
@@ -394,18 +420,20 @@ static void draw_help(UIState* state) {
   refresh();
 }
 
-// -------------------- Input --------------------
+// input handling
 static void handle_keyboard(UIState* state, int ch, queue_t* to_net, queue_t* from_net) {
   switch (state->screen) {
     case SCREEN_MAIN_MENU: {
                              switch (ch) {
                                case KEY_UP:
-                                 if (state->menu_selection > 0)
+                                 if (state->menu_selection > 0) {
                                    state->menu_selection--;
+                                 }
                                  break;
                                case KEY_DOWN:
-                                 if (state->menu_selection < 4)
+                                 if (state->menu_selection < 4) {
                                    state->menu_selection++;
+                                 }
                                  break;
                                case '\n':
                                  do_menu_action(state, state->menu_selection, to_net, from_net);
@@ -463,28 +491,34 @@ static void handle_keyboard(UIState* state, int ch, queue_t* to_net, queue_t* fr
                                 break;
                               }
 
-
     case SCREEN_IN_GAME: {
-                           int moved = 0;
                            switch (ch) {
-                             case KEY_UP:    state->cursor_row = (state->cursor_row - 1 + 3) % 3; moved = 1; break;
-                             case KEY_DOWN:  state->cursor_row = (state->cursor_row + 1) % 3; moved = 1; break;
-                             case KEY_LEFT:  state->cursor_col = (state->cursor_col - 1 + 3) % 3; moved = 1; break;
-                             case KEY_RIGHT: state->cursor_col = (state->cursor_col + 1) % 3; moved = 1; break;
+                             case KEY_UP:
+                               state->cursor_row = (state->cursor_row - 1 + 3) % 3;
+                               break;
+                             case KEY_DOWN:
+                               state->cursor_row = (state->cursor_row + 1) % 3;
+                               break;
+                             case KEY_LEFT:
+                               state->cursor_col = (state->cursor_col - 1 + 3) % 3;
+                               break;
+                             case KEY_RIGHT:
+                               state->cursor_col = (state->cursor_col + 1) % 3;
+                               break;
                              case '\n':
                              case ' ':
-                                             if (state->game_state.board[state->cursor_row][state->cursor_col] == ' ' &&
-                                                 state->game_state.current_turn == state->player_role) {
-                                               Message* cmd = alloc_message();
-                                               if (cmd) {
-                                                 cmd->type = MSG_MOVE;
-                                                 cmd->payload.move.game_id = state->current_game_id;
-                                                 cmd->payload.move.row = state->cursor_row;
-                                                 cmd->payload.move.col = state->cursor_col;
-                                                 queue_push(to_net, cmd);
-                                               }
-                                             }
-                                             break;
+                               if (state->game_state.board[state->cursor_row][state->cursor_col] == ' ' &&
+                                   state->game_state.current_turn == state->player_role) {
+                                 Message* cmd = alloc_message();
+                                 if (cmd) {
+                                   cmd->type = MSG_MOVE;
+                                   cmd->payload.move.game_id = state->current_game_id;
+                                   cmd->payload.move.row = (uint8_t)state->cursor_row;
+                                   cmd->payload.move.col = (uint8_t)state->cursor_col;
+                                   queue_push(to_net, cmd);
+                                 }
+                               }
+                               break;
                              case 27: {
                                         Message* cmd = alloc_message();
                                         if (cmd) {
@@ -526,8 +560,8 @@ static void handle_keyboard(UIState* state, int ch, queue_t* to_net, queue_t* fr
                                                      if (cmd) {
                                                        cmd->type = MSG_MOVE;
                                                        cmd->payload.move.game_id = state->current_game_id;
-                                                       cmd->payload.move.row = r;
-                                                       cmd->payload.move.col = c;
+                                                       cmd->payload.move.row = (uint8_t)r;
+                                                       cmd->payload.move.col = (uint8_t)c;
                                                        queue_push(to_net, cmd);
                                                      }
                                                    }
@@ -536,7 +570,6 @@ static void handle_keyboard(UIState* state, int ch, queue_t* to_net, queue_t* fr
                                                break;
                                              }
                            }
-                           (void)moved;
                            break;
                          }
 
@@ -587,7 +620,7 @@ static void handle_keyboard(UIState* state, int ch, queue_t* to_net, queue_t* fr
                            }
 
     case SCREEN_GAME_OVER: {
-                             // Any key: send leave and return to main menu
+                             // any key: send leave and return to main menu
                              Message* cmd = alloc_message();
                              if (cmd) {
                                cmd->type = MSG_LEAVE_GAME;
@@ -604,21 +637,29 @@ static void handle_keyboard(UIState* state, int ch, queue_t* to_net, queue_t* fr
                             if (state->settings_mode == SETTINGS_EDIT) {
                               if (ch == '\n') {
                                 switch (state->settings_active_field) {
-                                  case 0: strncpy(state->config.username, state->settings_edit_buf, sizeof(state->config.username)-1); break;
-                                  case 1: strncpy(state->config.ip, state->settings_edit_buf, sizeof(state->config.ip)-1); break;
-                                  case 2: strncpy(state->config.port, state->settings_edit_buf, sizeof(state->config.port)-1); break;
+                                  case 0:
+                                    snprintf(state->config.username, sizeof(state->config.username), "%s", state->settings_edit_buf);
+                                    break;
+                                  case 1:
+                                    snprintf(state->config.ip, sizeof(state->config.ip), "%s", state->settings_edit_buf);
+                                    break;
+                                  case 2:
+                                    snprintf(state->config.port, sizeof(state->config.port), "%s", state->settings_edit_buf);
+                                    break;
                                 }
                                 state->settings_mode = SETTINGS_NAV;
                               } else if (ch == 27) {
                                 state->settings_mode = SETTINGS_NAV;
                               } else if (ch == KEY_BACKSPACE || ch == 127 || ch == 8) {
-                                int len = strlen(state->settings_edit_buf);
-                                if (len > 0) state->settings_edit_buf[len-1] = '\0';
+                                int len = (int)strlen(state->settings_edit_buf);
+                                if (len > 0) {
+                                  state->settings_edit_buf[len - 1] = '\0';
+                                }
                               } else if (isprint(ch)) {
-                                int len = strlen(state->settings_edit_buf);
-                                if (len < (int)sizeof(state->settings_edit_buf)-1) {
-                                  state->settings_edit_buf[len] = ch;
-                                  state->settings_edit_buf[len+1] = '\0';
+                                int len = (int)strlen(state->settings_edit_buf);
+                                if (len < (int)sizeof(state->settings_edit_buf) - 1) {
+                                  state->settings_edit_buf[len] = (char)ch;
+                                  state->settings_edit_buf[len + 1] = '\0';
                                 }
                               }
                             } else {
@@ -637,9 +678,15 @@ static void handle_keyboard(UIState* state, int ch, queue_t* to_net, queue_t* fr
                                   } else {
                                     state->settings_mode = SETTINGS_EDIT;
                                     switch (state->settings_active_field) {
-                                      case 0: strcpy(state->settings_edit_buf, state->config.username); break;
-                                      case 1: strcpy(state->settings_edit_buf, state->config.ip); break;
-                                      case 2: strcpy(state->settings_edit_buf, state->config.port); break;
+                                      case 0:
+                                        strcpy(state->settings_edit_buf, state->config.username);
+                                        break;
+                                      case 1:
+                                        strcpy(state->settings_edit_buf, state->config.ip);
+                                        break;
+                                      case 2:
+                                        strcpy(state->settings_edit_buf, state->config.port);
+                                        break;
                                     }
                                   }
                                   break;
@@ -662,7 +709,7 @@ static void handle_keyboard(UIState* state, int ch, queue_t* to_net, queue_t* fr
   }
 }
 
-// -------------------- Events from network --------------------
+// events from network
 static void handle_event(UIState* state, UIEvent* ev) {
   switch (ev->type) {
     case UI_EVENT_GAME_STATE:
@@ -678,6 +725,7 @@ static void handle_event(UIState* state, UIEvent* ev) {
       break;
     case UI_EVENT_GAME_OVER:
       state->screen = SCREEN_GAME_OVER;
+      state->last_game_winner = ev->data.game_over.winner;   // store winner for YOU WIN/LOSE display
       snprintf(state->post_game_message, sizeof(state->post_game_message),
           "Game over: %s", ev->data.game_over.message);
       state->disconnected_at = time(NULL);
@@ -687,29 +735,30 @@ static void handle_event(UIState* state, UIEvent* ev) {
       for (int i = 0; i < state->lobby_count; i++) {
         state->lobby_games[i].game_id = ev->data.lobby_update.games[i].game_id;
         state->lobby_games[i].state = ev->data.lobby_update.games[i].state;
+
         strncpy(state->lobby_games[i].owner_name,
             ev->data.lobby_update.games[i].owner_name,
-            sizeof(state->lobby_games[i].owner_name)-1);
-        state->lobby_games[i].owner_name[sizeof(state->lobby_games[i].owner_name)-1] = '\0';
+            sizeof(state->lobby_games[i].owner_name) - 1);
+        state->lobby_games[i].owner_name[sizeof(state->lobby_games[i].owner_name) - 1] = '\0';
         state->lobby_games[i].players_connected = ev->data.lobby_update.games[i].players_connected;
       }
       break;
     case UI_EVENT_ERROR:
       strncpy(state->error_message, ev->data.error.error_message,
-          sizeof(state->error_message)-1);
-      state->error_message[sizeof(state->error_message)-1] = '\0';
+          sizeof(state->error_message) - 1);
+      state->error_message[sizeof(state->error_message) - 1] = '\0';
       break;
     case UI_EVENT_JOIN_REQUEST:
       strncpy(state->join_requester_name, ev->data.join_request.requesting_player_name,
-          sizeof(state->join_requester_name)-1);
-      state->join_requester_name[sizeof(state->join_requester_name)-1] = '\0';
+          sizeof(state->join_requester_name) - 1);
+      state->join_requester_name[sizeof(state->join_requester_name) - 1] = '\0';
+
       state->join_game_id = ev->data.join_request.game_id;
       state->screen = SCREEN_JOIN_REQUEST;
       break;
     case UI_EVENT_POST_GAME_OPTIONS:
       state->screen = SCREEN_POST_GAME;
-      snprintf(state->post_game_message, sizeof(state->post_game_message),
-          "Play again?");
+      snprintf(state->post_game_message, sizeof(state->post_game_message), "Play again?");
       break;
     case UI_EVENT_DISCONNECTED:
       state->screen = SCREEN_DISCONNECTED;
@@ -726,7 +775,7 @@ static void handle_event(UIState* state, UIEvent* ev) {
   }
 }
 
-// -------------------- Main loop --------------------
+// main loop
 void ui_run(queue_t* from_net, queue_t* to_net, Config* config) {
   init_ncurses();
   atomic_store(&ui_running, 1);
@@ -734,57 +783,74 @@ void ui_run(queue_t* from_net, queue_t* to_net, Config* config) {
   UIState state;
   memset(&state, 0, sizeof(state));
   state.screen = SCREEN_MAIN_MENU;
-  state.menu_selection = 0;          // start at first item
+  state.menu_selection = 0;
   state.net_ctx = NULL;
   state.is_connected = false;
+  state.last_game_winner = RESULT_NONE;   // initialise winner
   if (config) {
     memcpy(&state.config, config, sizeof(Config));
   } else {
-    // Default fallback (should not happen)
+    // default fallback (should not happen)
     strcpy(state.config.username, "Player");
     strcpy(state.config.ip, "127.0.0.1");
     strcpy(state.config.port, "8080");
   }
 
   while (atomic_load(&ui_running)) {
-    // Events from network
+    // events from network
     UIEvent* ev;
     while (queue_try_pop(from_net, (void**)&ev) == 0) {
       handle_event(&state, ev);
       free(ev);
     }
 
-    // Keyboard input
+    // keyboard input
     int ch = getch();
     if (ch != ERR) {
       handle_keyboard(&state, ch, to_net, from_net);
     }
 
-    // Drawing
+    // drawing
     switch (state.screen) {
-      case SCREEN_MAIN_MENU:      draw_main_menu(&state); break;
-      case SCREEN_LOBBY:          draw_lobby(&state); break;
-      case SCREEN_GAME_WAITING:   draw_game_waiting(&state); break;
-      case SCREEN_IN_GAME:        draw_game_board(&state); break;
-      case SCREEN_JOIN_REQUEST:   draw_join_request(&state); break;
-      case SCREEN_POST_GAME:      draw_post_game(&state); break;
+      case SCREEN_MAIN_MENU:
+        draw_main_menu(&state);
+        break;
+      case SCREEN_LOBBY:
+        draw_lobby(&state);
+        break;
+      case SCREEN_GAME_WAITING:
+        draw_game_waiting(&state);
+        break;
+      case SCREEN_IN_GAME:
+        draw_game_board(&state);
+        break;
+      case SCREEN_JOIN_REQUEST:
+        draw_join_request(&state);
+        break;
+      case SCREEN_POST_GAME:
+        draw_post_game(&state);
+        break;
       case SCREEN_DISCONNECTED:
-                                  draw_disconnected(&state);
-                                  if (time(NULL) - state.disconnected_at >= 2) {
-                                    atomic_store(&ui_running, 0);
-                                  }
-                                  break;
-      case SCREEN_SETTINGS:       draw_settings(&state); break;
-      case SCREEN_HELP:           draw_help(&state); break;
+        draw_disconnected(&state);
+        if (time(NULL) - state.disconnected_at >= 2) {
+          atomic_store(&ui_running, 0);
+        }
+        break;
+      case SCREEN_SETTINGS:
+        draw_settings(&state);
+        break;
+      case SCREEN_HELP:
+        draw_help(&state);
+        break;
       case SCREEN_GAME_OVER:
-                                  draw_game_over(&state);
-                                  break;
+        draw_game_over(&state);
+        break;
     }
 
     napms(50);
   }
 
-  // Cleanup
+  // cleanup
   if (state.net_ctx) {
     network_stop(state.net_ctx);
     network_wait(state.net_ctx);
