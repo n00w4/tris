@@ -5,25 +5,14 @@
 
 struct Game;
 
-
-/**
- * Handles requests
- */
 void handle_message(int client_socket, Message* msg);
-
-/**
- * Handles the request of the list of games 
-*/
-void handle_list_games(int client_socket);
-
-/**
- * Handle join game requests
-*/
-void handle_join_games(int client_socket, uint32_t game_id);
-
-/**
- * Handle the game request creation
- */
-void handle_create_games(int client_socket);
+void handle_list_game(int client_socket);
+void handle_join_request(int client_socket, uint32_t game_id);
+void handle_create_game(int client_socket);
+void handle_move(int client_socket, Message* msg);
+void handle_join_decision(int client_socket, bool accepted, uint32_t game_id);
+void handle_post_game_decision(int client_socket, uint32_t game_id, bool winner_wants_to_continue);
+void handle_leave_game(int client_socket, uint32_t game_id);
+void broadcast_lobby_update(void);
 
 #endif

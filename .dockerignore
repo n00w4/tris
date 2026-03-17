@@ -1,0 +1,29 @@
+# Dir local build
+server/build/
+client/build/
+build/
+
+# Object files and exectuables
+*.o
+*.a
+*.so
+*.out
+tris_server
+tris_client
+
+# Temp files
+*.log
+*.pid
+*.lock
+*.swp
+*.swo
+*~
+
+# Other dir
+.git/
+.vscode/
+.idea/
+
+# Docs
+README.md
+LICENSE

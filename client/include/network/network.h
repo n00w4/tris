@@ -1,15 +1,16 @@
 #ifndef NETWORK_H
 #define NETWORK_H
 
-#include "protocol.h"
-#include <sys/socket.h>
+#include "utils/queue.h"
+#include <stdbool.h>
+#include <arpa/inet.h>
 
-extern int client_socket;
+typedef struct network_ctx network_ctx;
 
-int connect_to_server(const char* ip, int port);
-void disconnect_from_server(void);
-int connect_with_config(void);
-int send_message_to_server(const Message* msg);
-int receive_message_from_server(Message* msg);
+network_ctx* network_start(const char* ip, int port, queue_t* to_ui, queue_t* from_ui);
+void network_stop(network_ctx* ctx);
+void network_wait(network_ctx* ctx);
+void network_destroy(network_ctx* ctx);
+bool network_is_connected(network_ctx* ctx);
 
 #endif

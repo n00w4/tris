@@ -1,0 +1,9 @@
+services:
+  tris-server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: tris-server
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
