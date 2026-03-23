@@ -16,7 +16,7 @@
 #include <stdatomic.h>
 
 struct network_ctx {
-  int sock;
+  atomic_int sock;
   queue_t* to_ui;
   queue_t* from_ui;
   pthread_t thread;
@@ -85,14 +85,12 @@ static void thread_exit_error(network_ctx* ctx, const char* user_msg) {
   if (ev) {
     ev->type = UI_EVENT_ERROR;
     snprintf(ev->data.error.error_message,
-        sizeof(ev->data.error.error_message),
-        "%s", user_msg);
+             sizeof(ev->data.error.error_message),
+             "%s", user_msg);
     queue_push(ctx->to_ui, ev);
   }
-  if (ctx->sock >= 0) {
-    close(ctx->sock);
-    ctx->sock = -1;
-  }
+  int old_fd = atomic_exchange(&ctx->sock, -1);
+  if (old_fd >= 0) { close(old_fd); }
   atomic_store(&ctx->running, 0);
 }
 
@@ -100,11 +98,12 @@ static void* network_thread_func(void* arg) {
   network_ctx* ctx = arg;
 
   // create socket
-  ctx->sock = socket(AF_INET, SOCK_STREAM, 0);
-  if (ctx->sock < 0) {
+  int fd = socket(AF_INET, SOCK_STREAM, 0);
+  if (fd < 0) {
     thread_exit_error(ctx, "Socket creation failed");
     return NULL;
   }
+  atomic_store(&ctx->sock, fd);
 
   // connect to the server
   struct sockaddr_in addr = {0};
@@ -115,7 +114,7 @@ static void* network_thread_func(void* arg) {
     return NULL;
   }
 
-  if (connect(ctx->sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+  if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
     thread_exit_error(ctx, "Connection to server failed");
     return NULL;
   }
@@ -125,14 +124,14 @@ static void* network_thread_func(void* arg) {
     // pop ui queue
     Message* cmd;
     while (queue_try_pop(ctx->from_ui, (void**)&cmd) == 0) {
-      if (send_message(ctx->sock, cmd) < 0) {
+      if (send_message(fd, cmd) < 0) {
         perror("[network] send_message");
         UIEvent* ev = malloc(sizeof(UIEvent));
         if (ev) {
           ev->type = UI_EVENT_ERROR;
           snprintf(ev->data.error.error_message,
-              sizeof(ev->data.error.error_message),
-              "Send failed, disconnecting");
+                   sizeof(ev->data.error.error_message),
+                   "Send failed, disconnecting");
           queue_push(ctx->to_ui, ev);
         }
         atomic_store(&ctx->running, 0);
@@ -144,7 +143,7 @@ static void* network_thread_func(void* arg) {
     if (!atomic_load(&ctx->running)) { break; }
 
     // wait for data from socket (100 ms)
-    struct pollfd pfd = { .fd = ctx->sock, .events = POLLIN };
+    struct pollfd pfd = { .fd = fd, .events = POLLIN };
     int pret = poll(&pfd, 1, 100);
     if (pret < 0) {
       if (errno == EINTR) { continue; }
@@ -153,7 +152,7 @@ static void* network_thread_func(void* arg) {
     }
     if (pret > 0 && (pfd.revents & POLLIN)) {
       Message msg = {0};
-      int r = receive_message(ctx->sock, &msg);
+      int r = receive_message(fd, &msg);
       if (r == -2) {   // connection closed from server
         UIEvent* ev = malloc(sizeof(UIEvent));
         if (ev) {
@@ -167,8 +166,8 @@ static void* network_thread_func(void* arg) {
         if (ev) {
           ev->type = UI_EVENT_ERROR;
           snprintf(ev->data.error.error_message,
-              sizeof(ev->data.error.error_message),
-              "Receive error");
+                   sizeof(ev->data.error.error_message),
+                   "Receive error");
           queue_push(ctx->to_ui, ev);
         }
         break;
@@ -179,8 +178,8 @@ static void* network_thread_func(void* arg) {
         if (err_ev) {
           err_ev->type = UI_EVENT_ERROR;
           snprintf(err_ev->data.error.error_message,
-              sizeof(err_ev->data.error.error_message),
-              "Out of memory processing server message");
+                   sizeof(err_ev->data.error.error_message),
+                   "Out of memory processing server message");
           queue_push(ctx->to_ui, err_ev);
         }
         fprintf(stderr, "[network] OOM: dropped message type %d\n", msg.type);
@@ -191,8 +190,8 @@ static void* network_thread_func(void* arg) {
   }
 
   drain_message_queue(ctx->from_ui);
-  close(ctx->sock);
-  ctx->sock = -1;
+  int old_fd = atomic_exchange(&ctx->sock, -1);
+  if (old_fd >= 0) { close(old_fd); }
   atomic_store(&ctx->running, 0);
   return NULL;
 }
@@ -206,7 +205,7 @@ network_ctx* network_start(const char* ip, int port, queue_t* to_ui, queue_t* fr
   strncpy(ctx->ip, ip, sizeof(ctx->ip) - 1);
   ctx->ip[sizeof(ctx->ip) - 1] = '\0';
   ctx->port = port;
-  ctx->sock = -1;
+  atomic_init(&ctx->sock, -1);
   ctx->to_ui = to_ui;
   ctx->from_ui = from_ui;
   atomic_init(&ctx->running, 1);
@@ -223,8 +222,9 @@ network_ctx* network_start(const char* ip, int port, queue_t* to_ui, queue_t* fr
 void network_stop(network_ctx* ctx) {
   if (!ctx) { return; }
   atomic_store(&ctx->running, 0);
-  if (ctx->sock >= 0) {
-    shutdown(ctx->sock, SHUT_RDWR);
+  int fd = atomic_load(&ctx->sock);
+  if (fd >= 0) {
+    shutdown(fd, SHUT_RDWR);
   }
 }
 
@@ -240,5 +240,6 @@ void network_destroy(network_ctx* ctx) {
 
 bool network_is_connected(network_ctx* ctx) {
   if (!ctx) { return false; }
-  return (ctx->sock >= 0 && atomic_load(&ctx->running));
+  int fd = atomic_load(&ctx->sock);
+  return (fd >= 0 && atomic_load(&ctx->running));
 }
