@@ -1,6 +1,7 @@
 CC = gcc
 CFLAGS_BASE = -Wall -Wextra -pedantic -std=c11 -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L -Iinclude -I../common/include
-HARDENING_CFLAGS = -D_FORTIFY_SOURCE=2 -fstack-protector-strong -Wformat -Wformat-security -Wshadow -Wconversion
+HARDENING_CFLAGS = -D_FORTIFY_SOURCE=2 -fstack-protector-strong -Wformat=2 -Wformat-security -Wshadow -Wconversion \
+           -Wstrict-prototypes -Wmissing-prototypes -Wold-style-definition -Wpointer-arith -Wcast-align -Wunused-result
 LDFLAGS = -Wl,-z,relro,-z,now
 LIBS = -lncurses -pthread
 

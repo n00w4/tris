@@ -291,6 +291,20 @@ static int deserialize_post_game_options(const uint8_t *src, size_t src_len, Pos
   return 0;
 }
 
+static int serialize_set_username(const SetUsernamePayload *src, uint8_t *dst, size_t dst_cap, size_t *out_len) {
+  const size_t needed = 32;
+  if (dst_cap < needed) { return -1; }
+  memcpy(dst, src->username, 32);
+  *out_len = needed;
+  return 0;
+}
+
+static int deserialize_set_username(const uint8_t *src, size_t src_len, SetUsernamePayload *dst) {
+  if (src_len != 32) { return -1; }
+  memcpy(dst->username, src, 32);
+  return 0;
+}
+
 int send_message(int socket, const Message *msg) {
   if (!msg) { return -1; }
 
@@ -333,6 +347,9 @@ int send_message(int socket, const Message *msg) {
       break;
     case MSG_POST_GAME_OPTIONS:
       ret = serialize_post_game_options(&msg->payload.post_game_options, payload_buf, sizeof(payload_buf), &payload_len);
+      break;
+    case MSG_SET_USERNAME:
+      ret = serialize_set_username(&msg->payload.set_username, payload_buf, sizeof(payload_buf), &payload_len);
       break;
     case MSG_JOIN_GAME:
       ret = serialize_join_request(&msg->payload.join_request, payload_buf, sizeof(payload_buf), &payload_len);
@@ -464,6 +481,9 @@ int receive_message(int socket, Message *msg) {
       break;
     case MSG_POST_GAME_OPTIONS:
       ret = deserialize_post_game_options(payload_buf, payload_len, &msg->payload.post_game_options);
+      break;
+    case MSG_SET_USERNAME:
+      ret = deserialize_set_username(payload_buf, payload_len, &msg->payload.set_username);
       break;
     case MSG_JOIN_GAME:
       ret = deserialize_join_request(payload_buf, payload_len, &msg->payload.join_request);

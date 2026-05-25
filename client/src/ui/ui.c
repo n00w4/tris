@@ -114,7 +114,7 @@ static bool ensure_network_connected(UIState* state, queue_t* to_net, queue_t* f
     state->net_ctx = NULL;
     state->is_connected = false;
   }
-  state->net_ctx = network_start(state->config.ip, atoi(state->config.port),
+  state->net_ctx = network_start(state->config.username, state->config.ip, atoi(state->config.port),
       from_net, to_net);
   if (!state->net_ctx) {
     strncpy(state->error_message, "Failed to connect to server", sizeof(state->error_message) - 1);
@@ -209,9 +209,11 @@ static void draw_lobby(UIState* state) {
   mvprintw(1, (COLS - 30) / 2, "=== Available Games ===");
   int y = 3;
   for (int i = 0; i < state->lobby_count && i < 10; i++) {
-    mvprintw(y++, 4, "%d. %s (%d players)", i + 1,
-        state->lobby_games[i].owner_name,
-        state->lobby_games[i].players_connected);
+    mvprintw(y++, 4, "%d - ID: %u - Owner: %s - (%d players) - STATUS: %s", i + 1,
+      state->lobby_games[i].game_id,
+      state->lobby_games[i].owner_name,
+      state->lobby_games[i].players_connected,
+      state->lobby_games[i].state == GAME_WAITING ? "Waiting" : "In-Game");
   }
   if (state->lobby_count == 0) {
     mvprintw(y, 4, "No games available.");
@@ -281,39 +283,34 @@ static void draw_join_request(UIState* state) {
   refresh();
 }
 
-static void draw_post_game(UIState* state) {
-  clear();
+static void draw_result_message(UIState* state, bool play_again) {
   char display_msg[256];
   if (state->last_game_winner == RESULT_DRAW) {
-    snprintf(display_msg, sizeof(display_msg), "%s", state->post_game_message);
+      snprintf(display_msg, sizeof(display_msg), "DRAW! %s", state->post_game_message);
   } else {
-    int player_won = ((int)state->player_role == state->last_game_winner);
-    snprintf(display_msg, sizeof(display_msg), "%s! %s",
-        player_won ? "YOU WIN" : "YOU LOSE",
-        state->post_game_message);
+      int player_won = ((int)state->player_role == state->last_game_winner);
+      snprintf(display_msg, sizeof(display_msg), "%s! %s",
+        player_won ? "YOU WIN" : "YOU LOSE", state->post_game_message);
+    }
+  int msg_len = (int)strlen(display_msg);
+  mvprintw(LINES / 2 - 2, (COLS - msg_len) / 2, "%s", display_msg);
+  if (play_again) {
+      mvprintw(LINES / 2, (COLS - 30) / 2, "Play again? (y/n)");
+  } else {
+      mvprintw(LINES / 2, (COLS - 30) / 2, "Press any key to return to menu...");
   }
-  mvprintw(LINES / 2 - 2, (COLS - 30) / 2, "%s", display_msg);
-  mvprintw(LINES / 2, (COLS - 30) / 2, "Play again? (y/n)");
   draw_status_bar(state);
   refresh();
 }
 
+static void draw_post_game(UIState* state) {
+  clear();
+  draw_result_message(state, true);
+}
+
 static void draw_game_over(UIState* state) {
   clear();
-  char display_msg[256];
-  if (state->last_game_winner == RESULT_DRAW) {
-    snprintf(display_msg, sizeof(display_msg), "%s", state->post_game_message);
-  } else {
-    int player_won = ((int)state->player_role == state->last_game_winner);
-    snprintf(display_msg, sizeof(display_msg), "%s! %s",
-        player_won ? "YOU WIN" : "YOU LOSE",
-        state->post_game_message);
-  }
-  int msg_len = (int)strlen(display_msg);
-  mvprintw(LINES / 2 - 2, (COLS - msg_len) / 2, "%s", display_msg);
-  mvprintw(LINES / 2, (COLS - 30) / 2, "Press any key to return to menu...");
-  draw_status_bar(state);
-  refresh();
+  draw_result_message(state, false);
 }
 
 static void draw_disconnected(UIState* state) {
@@ -422,6 +419,14 @@ static void draw_help(UIState* state) {
 
 // input handling
 static void handle_keyboard(UIState* state, int ch, queue_t* to_net, queue_t* from_net) {
+  if (state->error_message[0] != '\0') {
+    if (ch == '\n' || ch == ' ' || ch == 27) {
+      memset(state->error_message, 0, sizeof(state->error_message));
+      state->screen = SCREEN_LOBBY;
+    }
+    return;
+  }
+
   switch (state->screen) {
     case SCREEN_MAIN_MENU: {
                              switch (ch) {
@@ -484,7 +489,6 @@ static void handle_keyboard(UIState* state, int ch, queue_t* to_net, queue_t* fr
                                     cmd->type = MSG_LEAVE_GAME;
                                     cmd->payload.move.game_id = state->current_game_id;
                                     queue_push(to_net, cmd);
-                                    printf("[ui] Sending MSG_LEAVE_GAME for game %u (ESC during waiting)\n", state->current_game_id);
                                   }
                                   state->screen = SCREEN_MAIN_MENU;
                                 }
@@ -583,7 +587,7 @@ static void handle_keyboard(UIState* state, int ch, queue_t* to_net, queue_t* fr
                                     queue_push(to_net, cmd);
                                     state->screen = SCREEN_GAME_WAITING;
                                   }
-                                } else if (ch == 'n' || ch == 'N' || ch == 27) {
+                                } else if (ch == 'n' || ch == 'N') {
                                   Message* cmd = alloc_message();
                                   if (cmd) {
                                     cmd->type = MSG_JOIN_DECISION;
@@ -591,6 +595,22 @@ static void handle_keyboard(UIState* state, int ch, queue_t* to_net, queue_t* fr
                                     cmd->payload.join_decision.accepted = 0;
                                     queue_push(to_net, cmd);
                                   }
+                                  state->screen = SCREEN_GAME_WAITING;
+                                } else if (ch == 27) {
+                                  Message* cmd_decision = alloc_message();
+                                  if (cmd_decision) {
+                                    cmd_decision->type = MSG_JOIN_DECISION;
+                                    cmd_decision->payload.join_decision.game_id = state->join_game_id;
+                                    cmd_decision->payload.join_decision.accepted = 0;
+                                    queue_push(to_net, cmd_decision);
+                                  }
+                                  Message* cmd_leave = alloc_message();
+                                  if (cmd_leave) {
+                                    cmd_leave->type = MSG_LEAVE_GAME;
+                                    cmd_leave->payload.move.game_id = state->current_game_id;
+                                    queue_push(to_net, cmd_leave);
+                                  }
+                                  state->current_game_id = 0;
                                   state->screen = SCREEN_MAIN_MENU;
                                 }
                                 break;
@@ -747,6 +767,11 @@ static void handle_event(UIState* state, UIEvent* ev) {
       strncpy(state->error_message, ev->data.error.error_message,
           sizeof(state->error_message) - 1);
       state->error_message[sizeof(state->error_message) - 1] = '\0';
+
+      if (state->screen == SCREEN_GAME_WAITING) {
+        state->screen = SCREEN_LOBBY;
+      }
+
       break;
     case UI_EVENT_JOIN_REQUEST:
       strncpy(state->join_requester_name, ev->data.join_request.requesting_player_name,

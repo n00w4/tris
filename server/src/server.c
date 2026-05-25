@@ -181,8 +181,11 @@ void* handle_client(void* arg) {
   if (game_id != -1) {
     game_manager_leave_game(game_manager, (uint32_t)game_id, client_socket);
   }
+  
+  game_manager_cleanup_creator_games(game_manager, client_socket, 0);
+  
+  broadcast_lobby_update();
   close(client_socket);
-
   atomic_fetch_sub(&active_thread_count, 1);
   return NULL;
 }

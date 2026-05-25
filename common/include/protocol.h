@@ -23,6 +23,7 @@ typedef enum MessageType {
   MSG_LOBBY_UPDATE,
   MSG_GAME_STATUS_CHANGE,
   MSG_POST_GAME_OPTIONS,
+  MSG_SET_USERNAME,
   MSG_ERROR
 } MessageType;
 
@@ -122,6 +123,10 @@ typedef struct {
   uint8_t winner_wants_to_continue;   // 1 = continue, 0 = not continue
 } PostGameOptionsPayload;
 
+typedef struct {
+  char username[32];
+} SetUsernamePayload;
+
 typedef struct Message {
   MessageType type;
   union {
@@ -136,6 +141,7 @@ typedef struct Message {
     LobbyUpdatePayload lobby_update;
     GameStatusChangePayload status_change;
     PostGameOptionsPayload post_game_options;
+    SetUsernamePayload set_username;
   } payload;
 } Message;
 

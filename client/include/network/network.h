@@ -8,7 +8,7 @@
 
 typedef struct network_ctx network_ctx;
 
-network_ctx* network_start(const char* ip, int port, queue_t* to_ui, queue_t* from_ui);
+network_ctx* network_start(const char* username, const char* ip, int port, queue_t* to_ui, queue_t* from_ui);
 void network_stop(network_ctx* ctx);
 void network_wait(network_ctx* ctx);
 void network_destroy(network_ctx* ctx);

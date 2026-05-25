@@ -21,6 +21,7 @@ struct network_ctx {
   queue_t* from_ui;
   pthread_t thread;
   atomic_int running;
+  char username[32];
   char ip[INET_ADDRSTRLEN];
   int port;
 };
@@ -119,6 +120,12 @@ static void* network_thread_func(void* arg) {
     return NULL;
   }
 
+  Message set_user_msg;
+  memset(&set_user_msg, 0, sizeof(set_user_msg));
+  set_user_msg.type = MSG_SET_USERNAME;
+  snprintf(set_user_msg.payload.set_username.username, sizeof(set_user_msg.payload.set_username.username), "%s", ctx->username);
+  send_message(ctx->sock, &set_user_msg);
+
   // main loop
   while (atomic_load(&ctx->running)) {
     // pop ui queue
@@ -196,12 +203,14 @@ static void* network_thread_func(void* arg) {
   return NULL;
 }
 
-network_ctx* network_start(const char* ip, int port, queue_t* to_ui, queue_t* from_ui) {
+network_ctx* network_start(const char* username, const char* ip, int port, queue_t* to_ui, queue_t* from_ui) {
   if (!ip || !to_ui || !from_ui) { return NULL; }
 
   network_ctx* ctx = malloc(sizeof(network_ctx));
   if (!ctx) { return NULL; }
 
+  strncpy(ctx->username, username, sizeof(ctx->username) - 1);
+  ctx->username[sizeof(ctx->username) - 1] = '\0';
   strncpy(ctx->ip, ip, sizeof(ctx->ip) - 1);
   ctx->ip[sizeof(ctx->ip) - 1] = '\0';
   ctx->port = port;

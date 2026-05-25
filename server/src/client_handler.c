@@ -24,7 +24,6 @@ static void build_lobby_message(Message *out_msg, const GameSnapshot *snapshots,
       sizeof(out_msg->payload.lobby_update.games[i].owner_name)-1] = '\0';
     out_msg->payload.lobby_update.games[i].players_connected = snapshots[i].players_connected;
   }
-  printf("%ld\n", (long)out_msg->payload.lobby_update.games[0].game_id);
 }
 
 static bool client_is_playing(int client_socket) {
@@ -47,7 +46,7 @@ static void client_set_playing(int socket, bool playing, uint32_t game_id) {
     if (clients[i].is_active && clients[i].socket == socket) {
       clients[i].is_playing = playing;
       clients[i].current_game_id = playing ? (int)game_id : -1;
-      printf("[server] client_set_playing: socket %d, playing=%d, game_id=%d\n",
+      printf("[Handler] client_set_playing: socket %d, playing=%d, game_id=%d\n",
           socket, playing, playing ? (int)game_id : -1);
       break;
     }
@@ -63,13 +62,20 @@ void broadcast_lobby_update(void) {
   Message lobby_msg;
   build_lobby_message(&lobby_msg, snapshots, count);
 
+  int sockets_to_update[MAX_CLIENTS];
+  int count_to_update = 0;
+
   pthread_mutex_lock(&clients_mutex);
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (clients[i].is_active && !clients[i].is_playing) {
-      send_message(clients[i].socket, &lobby_msg);
+      sockets_to_update[count_to_update++] = clients[i].socket;
     }
   }
   pthread_mutex_unlock(&clients_mutex);
+
+  for (int i = 0; i < count_to_update; i++) {
+    send_message(sockets_to_update[i], &lobby_msg);
+  }
 }
 
 void handle_message(int client_socket, Message* msg) {
@@ -89,6 +95,9 @@ void handle_message(int client_socket, Message* msg) {
       handle_post_game_decision(client_socket,
           msg->payload.post_game_options.game_id,
           msg->payload.post_game_options.winner_wants_to_continue);
+      break;
+    case MSG_SET_USERNAME:
+      handle_set_username(client_socket, &msg->payload.set_username);
       break;
     case MSG_MOVE:
       handle_move(client_socket, msg);
@@ -189,6 +198,17 @@ void handle_join_request(int client_socket, uint32_t game_id) {
     return;
   }
 
+  int owner_sock = game_manager_get_owner_socket(game_manager, game_id);
+  if (owner_sock == client_socket) {
+    Message err = {0};
+    err.type = MSG_ERROR;
+    snprintf(err.payload.error.error_message,
+        sizeof(err.payload.error.error_message),
+        "You cant join your own game!");
+    send_message(client_socket, &err);
+    return;
+  }
+
   char username[32] = "Unknown";
   find_username_by_socket(client_socket, username, sizeof(username));
 
@@ -205,7 +225,7 @@ void handle_join_request(int client_socket, uint32_t game_id) {
   }
   if (ret == 1) {
     // send request to owner
-    int owner_sock = game_manager_get_owner_socket(game_manager, game_id);
+    owner_sock = game_manager_get_owner_socket(game_manager, game_id);
     if (owner_sock != -1) {
       Message req = {0};
       memset(&req, 0, sizeof(req));
@@ -227,19 +247,25 @@ void handle_join_request(int client_socket, uint32_t game_id) {
 }
 
 void handle_join_decision(int client_socket, bool accepted, uint32_t game_id) {
+  int waiting_sock = -1;
+
+  game_manager_get_waiting_socket(game_manager, game_id, &waiting_sock);
+
   Player assigned_role;
   int ret = game_manager_join_decision(game_manager, game_id, accepted ? 1 : 0, &assigned_role);
   if (ret < 0) {
     Message err = {0};
     err.type = MSG_ERROR;
     snprintf(err.payload.error.error_message,
-        sizeof(err.payload.error.error_message),
-        "No pending join request for this game");
+             sizeof(err.payload.error.error_message),
+             "No pending join request or joiner disconnected");
     send_message(client_socket, &err);
     return;
   }
 
   if (accepted) {
+    game_manager_cleanup_creator_games(game_manager, client_socket, game_id);
+    
     int x_sock, o_sock;
     if (game_manager_get_players(game_manager, game_id, &x_sock, &o_sock) < 0) {
       fprintf(stderr, "[Handler] Failed to get players after join decision\n");
@@ -276,8 +302,8 @@ void handle_join_decision(int client_socket, bool accepted, uint32_t game_id) {
       state_x.payload.game_state.state_data = state;
       state_x.payload.game_state.state_data.player_role = PLAYER_X;
       snprintf(state_x.payload.game_state.message,
-          sizeof(state_x.payload.game_state.message),
-          "Game started");
+              sizeof(state_x.payload.game_state.message),
+              "Game started");
 
       state_o = state_x;
       state_o.payload.game_state.state_data.player_role = PLAYER_O;
@@ -297,15 +323,12 @@ void handle_join_decision(int client_socket, bool accepted, uint32_t game_id) {
     }
     pthread_mutex_unlock(&clients_mutex);
   } else {
-    // reject and notify waiting player
-    int waiting_sock;
-    if (game_manager_get_waiting_socket(game_manager, game_id, &waiting_sock) == 0 &&
-        waiting_sock != -1) {
-      Message err;
+    if (waiting_sock >= 0) {
+      Message err = {0};
       err.type = MSG_ERROR;
       snprintf(err.payload.error.error_message,
-          sizeof(err.payload.error.error_message),
-          "Join request was rejected by game owner");
+              sizeof(err.payload.error.error_message),
+              "Join request was rejected by game owner");
       send_message(waiting_sock, &err);
     }
   }
@@ -497,6 +520,18 @@ void handle_post_game_decision(int client_socket, uint32_t game_id, bool wants_t
     }
     broadcast_lobby_update();
   }
+}
+
+void handle_set_username(int client_socket, const SetUsernamePayload *payload) {
+  pthread_mutex_lock(&clients_mutex);
+  for (int i = 0; i < MAX_CLIENTS; i++) {
+    if (clients[i].is_active && clients[i].socket == client_socket) {
+      strncpy(clients[i].username, payload->username, sizeof(clients[i].username)-1);
+      clients[i].username[sizeof(clients[i].username)-1] = '\0';
+      break;
+    }
+  }
+  pthread_mutex_unlock(&clients_mutex);
 }
 
 void handle_leave_game(int client_socket, uint32_t game_id) {

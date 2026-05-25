@@ -35,6 +35,7 @@ typedef struct Game {
 typedef struct GameManager GameManager;
 
 GameManager *game_manager_create(void);
+void game_manager_cleanup_creator_games(GameManager *gm, int creator_socket, uint32_t accepted_game_id);
 void game_manager_destroy(GameManager *gm);
 int game_manager_create_game(GameManager *gm, int player_x_socket, const char *owner_username, uint32_t *out_game_id);
 int game_manager_get_owner_socket(GameManager *gm, uint32_t game_id);

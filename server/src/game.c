@@ -6,6 +6,7 @@
 
 struct GameManager {
   Game *head;
+  Game *tail;
   pthread_mutex_t lock;
 };
 
@@ -69,7 +70,6 @@ static void handle_draw_post_game(Game *g, bool *both_decided) {
   if (!*both_decided) { return; }
 
   if (g->post_game_x_continue && g->post_game_o_continue) {
-    // Both want to continue: restart with same roles
     for (int i = 0; i < 3; i++) {
       for (int j = 0; j < 3; j++) {
         g->state_data.board[i][j] = ' ';
@@ -80,7 +80,6 @@ static void handle_draw_post_game(Game *g, bool *both_decided) {
     g->state_data.result_player_o = RESULT_NONE;
     g->state_data.state = GAME_IN_PROGRESS;
   } else if (g->post_game_x_continue || g->post_game_o_continue) {
-    // winner becomes owner
     int new_owner_sock = g->post_game_x_continue ? g->player_x_socket : g->player_o_socket;
     g->player_x_socket = new_owner_sock;
     g->player_o_socket = -1;
@@ -95,7 +94,6 @@ static void handle_draw_post_game(Game *g, bool *both_decided) {
     g->state_data.result_player_o = RESULT_NONE;
     g->state_data.state = GAME_WAITING;
   } else {
-    // no one wants to continue
     g->state_data.state = GAME_FINISHED;
   }
 
@@ -107,7 +105,6 @@ static void handle_win_post_game(Game *g, bool x_won, int player_socket, int wan
   bool winner_is_x = x_won;
   int winner_sock = winner_is_x ? g->player_x_socket : g->player_o_socket;
 
-  // if the current player is the loser, just return.
   if ((winner_is_x && player_socket == g->player_o_socket) || (!winner_is_x && player_socket == g->player_x_socket)) {
     *both_decided = false;
     return;
@@ -133,7 +130,6 @@ static void handle_win_post_game(Game *g, bool x_won, int player_socket, int wan
   *both_decided = true;
 }
 
-
 // Public API
 
 GameManager *game_manager_create(void) {
@@ -141,8 +137,29 @@ GameManager *game_manager_create(void) {
   if (!gm) { return NULL; }
 
   gm->head = NULL;
+  gm->tail = NULL;
   pthread_mutex_init(&gm->lock, NULL);
   return gm;
+}
+
+void game_manager_cleanup_creator_games(GameManager *gm, int creator_socket, uint32_t accepted_game_id) {
+  uint32_t ids_to_remove[128];
+  int remove_count = 0;
+
+  pthread_mutex_lock(&gm->lock);
+  Game *current = gm->head;
+  while (current && remove_count < 128) {
+    if (current->player_x_socket == creator_socket && current->id != accepted_game_id) {
+      ids_to_remove[remove_count++] = current->id;
+    }
+    current = current->next;
+  }
+  pthread_mutex_unlock(&gm->lock);
+
+  for (int i = 0; i < remove_count; i++) {
+    printf("[GameManager] Deleted game ID %u for socket %d\n", ids_to_remove[i], creator_socket);
+    game_manager_leave_game(gm, ids_to_remove[i], creator_socket);
+  }
 }
 
 void game_manager_destroy(GameManager *gm) {
@@ -156,6 +173,8 @@ void game_manager_destroy(GameManager *gm) {
     free(cur);
     cur = next;
   }
+  gm->head = NULL;
+  gm->tail = NULL;
   pthread_mutex_unlock(&gm->lock);
   pthread_mutex_destroy(&gm->lock);
   free(gm);
@@ -189,8 +208,12 @@ int game_manager_create_game(GameManager *gm, int player_x_socket, const char *o
   pthread_mutex_init(&g->lock, NULL);
 
   pthread_mutex_lock(&gm->lock);
-  g->next = gm->head;
-  gm->head = g;
+  if (gm->head == NULL) {
+    gm->head = gm->tail = g;
+  } else {
+    gm->tail->next = g;
+    gm->tail = g;
+  }
   pthread_mutex_unlock(&gm->lock);
 
   if (out_game_id) { *out_game_id = g->id; }
@@ -241,7 +264,7 @@ int game_manager_join_game(GameManager *gm, uint32_t game_id, int joiner_socket,
     g->waiting_player_username[sizeof(g->waiting_player_username) - 1] = '\0';
   }
   pthread_mutex_unlock(&g->lock);
-  return 1;   // waiting for owner decision
+  return 1;
 }
 
 int game_manager_join_decision(GameManager *gm, uint32_t game_id, int accepted, Player *out_player_role) {
@@ -324,10 +347,14 @@ int game_manager_move(GameManager *gm, uint32_t game_id, int player_socket, uint
 }
 
 int game_manager_leave_game(GameManager *gm, uint32_t game_id, int player_socket) {
-  // find the game under gm->lock, lock it, then release gm->lock
   pthread_mutex_lock(&gm->lock);
+  
+  Game *prev = NULL;
   Game *g = gm->head;
-  while (g && g->id != game_id) { g = g->next; }
+  while (g && g->id != game_id) {
+    prev = g;
+    g = g->next;
+  }
 
   if (!g) {
     pthread_mutex_unlock(&gm->lock);
@@ -335,7 +362,6 @@ int game_manager_leave_game(GameManager *gm, uint32_t game_id, int player_socket
   }
 
   pthread_mutex_lock(&g->lock);
-  pthread_mutex_unlock(&gm->lock);
 
   // update player sockets
   if (player_socket == g->player_x_socket) {
@@ -347,31 +373,33 @@ int game_manager_leave_game(GameManager *gm, uint32_t game_id, int player_socket
     g->waiting_player_username[0] = '\0';
   } else {
     pthread_mutex_unlock(&g->lock);
+    pthread_mutex_unlock(&gm->lock);
     return -1;
   }
 
   bool should_remove = (g->player_x_socket == -1 &&
-      g->player_o_socket == -1 &&
-      g->waiting_player_socket == -1);
-
-  pthread_mutex_unlock(&g->lock);
+                        g->player_o_socket == -1 &&
+                        g->waiting_player_socket == -1);
 
   if (should_remove) {
-    pthread_mutex_lock(&gm->lock);
-    Game **pprev = &gm->head;
-    Game *curr = gm->head;
-    while (curr && curr != g) {
-      pprev = &curr->next;
-      curr = curr->next;
+    if (prev != NULL) {
+      prev->next = g->next;
+    } else {
+      gm->head = g->next;
     }
-    if (curr == g) {
-      *pprev = g->next;
-      pthread_mutex_destroy(&g->lock);
-      free(g);
+
+    if (gm->tail == g) {
+      gm->tail = prev;
     }
-    pthread_mutex_unlock(&gm->lock);
+
+    pthread_mutex_unlock(&g->lock);
+    pthread_mutex_destroy(&g->lock);
+    free(g);
+  } else {
+    pthread_mutex_unlock(&g->lock);
   }
 
+  pthread_mutex_unlock(&gm->lock);
   return 0;
 }
 
@@ -380,17 +408,22 @@ void game_manager_list_games(GameManager *gm, GameSnapshot *out_snapshots, uint8
   uint8_t cnt = 0;
 
   for (Game *g = gm->head; g && cnt < 10; g = g->next) {
+    pthread_mutex_lock(&g->lock);
+
     if (g->state_data.state == GAME_WAITING &&
         g->player_o_socket == -1 &&
         g->waiting_player_socket == -1) {
+      
       out_snapshots[cnt].id = g->id;
       out_snapshots[cnt].state = g->state_data.state;
       strncpy(out_snapshots[cnt].owner_name, g->owner_username,
-          sizeof(out_snapshots[cnt].owner_name) - 1);
+              sizeof(out_snapshots[cnt].owner_name) - 1);
       out_snapshots[cnt].owner_name[sizeof(out_snapshots[cnt].owner_name) - 1] = '\0';
-      out_snapshots[cnt].players_connected = 1; // only owner present
+      out_snapshots[cnt].players_connected = 1;
       cnt++;
     }
+
+    pthread_mutex_unlock(&g->lock);
   }
 
   *out_count = cnt;
@@ -438,7 +471,6 @@ int game_manager_post_game_decision(GameManager *gm, uint32_t game_id, int playe
     return -1;
   }
 
-  // store the decision
   if (is_x) {
     g->post_game_x_received = true;
     g->post_game_x_continue = wants_to_continue;
