@@ -1,15 +1,15 @@
 #include "server.h"
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
-#include <pthread.h>
-#include <unistd.h>
-#include <signal.h>
 #include <errno.h>
+#include <netinet/in.h>
+#include <pthread.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/socket.h>
 #include <time.h>
+#include <unistd.h>
 
 static volatile sig_atomic_t keep_running = 1;
 
@@ -49,7 +49,8 @@ int main(void) {
   while (keep_running) {
     struct sockaddr_in client_addr = {0};
     socklen_t client_len = sizeof(client_addr);
-    int client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_len);
+    int client_socket =
+        accept(server_socket, (struct sockaddr *)&client_addr, &client_len);
     if (client_socket < 0) {
       if (errno == EINTR && !keep_running) {
         break;
@@ -62,7 +63,7 @@ int main(void) {
     inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
     printf("Connection from %s:%d\n", client_ip, ntohs(client_addr.sin_port));
 
-    int* socket_ptr = malloc(sizeof(int));
+    int *socket_ptr = malloc(sizeof(int));
     if (socket_ptr == NULL) {
       perror("malloc failed");
       close(client_socket);
@@ -97,14 +98,15 @@ int main(void) {
   }
   pthread_mutex_unlock(&clients_mutex);
 
-  struct timespec ts = { .tv_sec = 0, .tv_nsec = 100000000L }; // 100ms
+  struct timespec ts = {.tv_sec = 0, .tv_nsec = 100000000L}; // 100ms
   int waited_ms = 0;
   while (atomic_load(&active_thread_count) > 0 && waited_ms < 5000) {
     nanosleep(&ts, NULL);
     waited_ms += 100;
   }
   if (atomic_load(&active_thread_count) > 0) {
-    fprintf(stderr, "[main] Warning: %d thread(s) still active after timeout\n", atomic_load(&active_thread_count));
+    fprintf(stderr, "[main] Warning: %d thread(s) still active after timeout\n",
+            atomic_load(&active_thread_count));
   }
 
   cleanup_server();

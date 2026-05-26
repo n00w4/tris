@@ -1,18 +1,18 @@
 #include "server.h"
+#include "client_handler.h"
 #include "game.h"
 #include "protocol.h"
-#include "client_handler.h"
 
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
+#include <pthread.h>
 #include <stdatomic.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 Client clients[MAX_CLIENTS];
 static int active_clients_count = 0;
@@ -22,7 +22,7 @@ atomic_int active_thread_count = 0;
 
 GameManager *game_manager = NULL;
 
-Client* add_client(int client_socket) {
+Client *add_client(int client_socket) {
   if (active_clients_count >= MAX_CLIENTS) {
     fprintf(stderr, "[server] Server full! Max clients: %d\n", MAX_CLIENTS);
     return NULL;
@@ -36,7 +36,7 @@ Client* add_client(int client_socket) {
       snprintf(clients[i].username, sizeof(clients[i].username), "Guest");
       active_clients_count++;
       printf("[server] New client connected (slot %d, socket %d). Total: %d\n",
-          i, client_socket, active_clients_count);
+             i, client_socket, active_clients_count);
       return &clients[i];
     }
   }
@@ -46,7 +46,8 @@ Client* add_client(int client_socket) {
 void remove_client(int client_socket) {
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (clients[i].is_active && clients[i].socket == client_socket) {
-      printf("[server] Client removed (slot %d, socket %d)\n", i, client_socket);
+      printf("[server] Client removed (slot %d, socket %d)\n", i,
+             client_socket);
       clients[i].is_active = false;
       clients[i].is_playing = false;
       clients[i].current_game_id = -1;
@@ -113,7 +114,7 @@ int create_server_socket(int port) {
   address.sin_addr.s_addr = INADDR_ANY;
   address.sin_port = htons((uint16_t)port);
 
-  if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
+  if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
     perror("[server] bind failed");
     close(server_fd);
     return -1;
@@ -129,15 +130,15 @@ int create_server_socket(int port) {
   return server_fd;
 }
 
-void* handle_client(void* arg) {
+void *handle_client(void *arg) {
   atomic_fetch_add(&active_thread_count, 1);
 
-  int client_socket = *(int*)arg;
+  int client_socket = *(int *)arg;
   free(arg);
 
   // add client to the active list
   pthread_mutex_lock(&clients_mutex);
-  Client* client = add_client(client_socket);
+  Client *client = add_client(client_socket);
   pthread_mutex_unlock(&clients_mutex);
 
   if (!client) {
@@ -146,8 +147,7 @@ void* handle_client(void* arg) {
     memset(&err, 0, sizeof(err));
     err.type = MSG_ERROR;
     snprintf(err.payload.error.error_message,
-        sizeof(err.payload.error.error_message),
-        "%s", MAX_CONN_MSG);
+             sizeof(err.payload.error.error_message), "%s", MAX_CONN_MSG);
     send_message(client_socket, &err);
     close(client_socket);
     atomic_fetch_sub(&active_thread_count, 1);
@@ -159,7 +159,7 @@ void* handle_client(void* arg) {
   while (1) {
     memset(&msg, 0, sizeof(msg));
     int ret = receive_message(client_socket, &msg);
-    if (ret < 0) {   // error or connection closed
+    if (ret < 0) { // error or connection closed
       printf("[server] Client socket %d disconnected\n", client_socket);
       break;
     }
@@ -181,17 +181,20 @@ void* handle_client(void* arg) {
   if (game_id != -1) {
     game_manager_leave_game(game_manager, (uint32_t)game_id, client_socket);
   }
-  
+
   game_manager_cleanup_creator_games(game_manager, client_socket, 0);
-  
+
   broadcast_lobby_update();
   close(client_socket);
   atomic_fetch_sub(&active_thread_count, 1);
   return NULL;
 }
 
-void find_username_by_socket(int socket, char *username_output, size_t out_size) {
-  if (!username_output || out_size == 0) { return; }
+void find_username_by_socket(int socket, char *username_output,
+                             size_t out_size) {
+  if (!username_output || out_size == 0) {
+    return;
+  }
 
   pthread_mutex_lock(&clients_mutex);
   int found = 0;

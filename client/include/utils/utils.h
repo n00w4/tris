@@ -11,7 +11,7 @@ typedef struct {
   char port[6];
 } Config;
 
-bool read_config(Config* config);
-bool save_config(Config* config);
+bool read_config(Config *config);
+bool save_config(Config *config);
 
 #endif

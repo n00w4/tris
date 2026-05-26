@@ -1,8 +1,8 @@
 #include "ui/ui.h"
 #include "utils/queue.h"
 #include "utils/utils.h"
-#include <stdio.h>
 #include <signal.h>
+#include <stdio.h>
 
 int main(void) {
   signal(SIGPIPE, SIG_IGN);
@@ -15,8 +15,8 @@ int main(void) {
     snprintf(config.port, sizeof(config.port), "8080");
   }
 
-  queue_t* to_net = queue_create(64);
-  queue_t* from_net = queue_create(64);
+  queue_t *to_net = queue_create(64);
+  queue_t *from_net = queue_create(64);
   if (!to_net || !from_net) {
     fprintf(stderr, "Failed to create queues\n");
     return 1;

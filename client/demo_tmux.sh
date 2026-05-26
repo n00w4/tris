@@ -1,5 +1,5 @@
 #!/bin/bash
-# demo_tmux.sh – Starts 4 client instances in a tmux session for demonstration purposes
+# demo_tmux.sh – starts 4 client instances in a tmux session for demonstration purposes
 
 SESSION_NAME="tris_demo"
 BASE_DIR="demo_clients_tmux"

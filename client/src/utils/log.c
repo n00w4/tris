@@ -1,7 +1,7 @@
 #include "utils/log.h"
 
-#include <stdio.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <time.h>
 
 static FILE *log_file = NULL;
@@ -18,7 +18,9 @@ static void log_init(void) {
 void log_printf(const char *fmt, ...) {
   log_init();
 
-  if (!log_file) { return; }
+  if (!log_file) {
+    return;
+  }
 
   time_t now = time(NULL);
   struct tm *tm_info = localtime(&now);

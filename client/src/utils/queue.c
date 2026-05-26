@@ -1,27 +1,31 @@
 #include "utils/queue.h"
 
-#include <stdlib.h>
+#include <assert.h>
 #include <pthread.h>
 #include <stdatomic.h>
-#include <assert.h>
+#include <stdlib.h>
 
 struct queue {
-  void           **buffer;
-  size_t           capacity;
-  size_t           head;      // read index
-  size_t           tail;      // write index
-  size_t           count;     // number of elements
-  pthread_mutex_t  lock;
-  pthread_cond_t   not_full;
-  pthread_cond_t   not_empty;
-  atomic_int       destroyed;
+  void **buffer;
+  size_t capacity;
+  size_t head;  // read index
+  size_t tail;  // write index
+  size_t count; // number of elements
+  pthread_mutex_t lock;
+  pthread_cond_t not_full;
+  pthread_cond_t not_empty;
+  atomic_int destroyed;
 };
 
 queue_t *queue_create(size_t capacity) {
-  if (capacity == 0) { return NULL; }
+  if (capacity == 0) {
+    return NULL;
+  }
 
   queue_t *q = malloc(sizeof(queue_t));
-  if (!q) { return NULL; }
+  if (!q) {
+    return NULL;
+  }
 
   q->buffer = malloc(sizeof(void *) * capacity);
   if (!q->buffer) {
@@ -58,12 +62,14 @@ queue_t *queue_create(size_t capacity) {
 }
 
 void queue_destroy(queue_t *q) {
-  if (!q) { return; }
+  if (!q) {
+    return;
+  }
 
   pthread_mutex_lock(&q->lock);
   assert(q->count == 0 &&
-      "queue_destroy: called with elements still in queue. "
-      "Ensure all threads have terminated before destroying the queue.");
+         "queue_destroy: called with elements still in queue. "
+         "Ensure all threads have terminated before destroying the queue.");
   atomic_store(&q->destroyed, 1);
   pthread_cond_broadcast(&q->not_full);
   pthread_cond_broadcast(&q->not_empty);
@@ -118,13 +124,9 @@ static int queue_pop_locked(queue_t *q, void **data, int block) {
   return 0;
 }
 
-int queue_push(queue_t *q, void *data) {
-  return queue_push_locked(q, data, 1);
-}
+int queue_push(queue_t *q, void *data) { return queue_push_locked(q, data, 1); }
 
-int queue_pop(queue_t *q, void **data) {
-  return queue_pop_locked(q, data, 1);
-}
+int queue_pop(queue_t *q, void **data) { return queue_pop_locked(q, data, 1); }
 
 int queue_try_push(queue_t *q, void *data) {
   return queue_push_locked(q, data, 0);

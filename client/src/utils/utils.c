@@ -1,10 +1,10 @@
 #include "utils/utils.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdbool.h>
 
-bool read_config(Config* config) {
+bool read_config(Config *config) {
   if (config == NULL) {
     return false;
   }
@@ -20,13 +20,14 @@ bool read_config(Config* config) {
     }
   }
 
-  int read = fscanf(file, " username=%49s ip=%15s port=%5s", config->username, config->ip, config->port);
+  int read = fscanf(file, " username=%49s ip=%15s port=%5s", config->username,
+                    config->ip, config->port);
   fclose(file);
 
   return (read == 3);
 }
 
-bool save_config(Config* config) {
+bool save_config(Config *config) {
   if (config == NULL) {
     return false;
   }

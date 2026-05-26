@@ -1,12 +1,12 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
-#include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
-#define PROTOCOL_MAGIC     0x54524953U  // TRIS in ASCII 
-#define PROTOCOL_VERSION   1
+#define PROTOCOL_MAGIC 0x54524953U // TRIS in ASCII
+#define PROTOCOL_VERSION 1
 
 typedef enum MessageType {
   MSG_CREATE_GAME = 1,
@@ -41,10 +41,7 @@ typedef enum GameResult {
   RESULT_NONE
 } GameResult;
 
-typedef enum Player {
-  PLAYER_X = 0,
-  PLAYER_O = 1
-} Player;
+typedef enum Player { PLAYER_X = 0, PLAYER_O = 1 } Player;
 
 typedef struct GameCommonState {
   char board[3][3];
@@ -71,25 +68,25 @@ typedef struct {
   char error_message[64];
 } ErrorPayload;
 
-typedef struct  GameListPayload {
+typedef struct GameListPayload {
   uint32_t game_ids[10];
   uint8_t game_count;
   GameState game_states[10];
 } GameListPayload;
 
-typedef struct  GameStartPayload {
+typedef struct GameStartPayload {
   uint32_t game_id;
-  Player player_role;          // X or O
+  Player player_role; // X or O
   Player first_player;
 } GameStartPayload;
 
-typedef struct  GameOverPayload {
+typedef struct GameOverPayload {
   uint32_t game_id;
   uint8_t winner;
   char message[64];
 } GameOverPayload;
 
-typedef struct  JoinRequestPayload {
+typedef struct JoinRequestPayload {
   uint32_t game_id;
   uint32_t requesting_player_id;
   char requesting_player_name[32];
@@ -97,22 +94,22 @@ typedef struct  JoinRequestPayload {
 
 typedef struct {
   uint32_t game_id;
-  uint8_t accepted;   // 1 = accept, 0 = refuse
+  uint8_t accepted; // 1 = accept, 0 = refuse
 } JoinDecisionPayload;
 
-typedef struct  LobbyGameInfo {
+typedef struct LobbyGameInfo {
   uint32_t game_id;
   GameState state;
   char owner_name[32];
-  int players_connected; 
+  int players_connected;
 } LobbyGameInfo;
 
-typedef struct  LobbyUpdatePayload {
+typedef struct LobbyUpdatePayload {
   uint8_t game_count;
   LobbyGameInfo games[10];
 } LobbyUpdatePayload;
 
-typedef struct  GameStatusChangePayload {
+typedef struct GameStatusChangePayload {
   uint32_t game_id;
   GameState new_state;
   char message[128];
@@ -120,7 +117,7 @@ typedef struct  GameStatusChangePayload {
 
 typedef struct {
   uint32_t game_id;
-  uint8_t winner_wants_to_continue;   // 1 = continue, 0 = not continue
+  uint8_t winner_wants_to_continue; // 1 = continue, 0 = not continue
 } PostGameOptionsPayload;
 
 typedef struct {
@@ -149,4 +146,3 @@ int send_message(int socket, const Message *msg);
 int receive_message(int socket, Message *msg);
 
 #endif // PROTOCOL_H
-
